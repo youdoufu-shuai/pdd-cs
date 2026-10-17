@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 测试 / 缓存
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 运行时数据（含聊天记录，绝不提交）
+data/
+data-demo/
+*.db
+*.db-wal
+*.db-shm
+
+# 登录凭据（绝不提交）
+config/secrets/*
+!config/secrets/.gitkeep
+
+# 用户本地配置（由 config.example.yaml 生成）
+config/config.yaml
+
+# 浏览器用户目录 / 截图缓存
+*chrome-profile*/
+chrome-shot*/
+
+# 系统
+.DS_Store
+Thumbs.db

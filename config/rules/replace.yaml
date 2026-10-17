@@ -1,0 +1,59 @@
+# =============================================================================
+# 出站替换词
+# -----------------------------------------------------------------------------
+# 每条回复发送前执行替换，用于规避拼多多敏感词 / 绝对化用语。
+# 拼多多实测会被拦截的词（2026-08 一线实测，平台会调整）：链接、专业人员。
+# 替换不影响语义，例如「链接」→「页面」。
+# =============================================================================
+
+- pattern: 加微信
+  replace: 在平台内联系
+  match: fuzzy
+
+- pattern: 微信
+  replace: 平台消息
+  match: fuzzy
+
+- pattern: 二维码
+  replace: 图片
+  match: fuzzy
+
+- pattern: 私聊
+  replace: 在这里沟通
+  match: fuzzy
+
+- pattern: 链接
+  replace: 页面
+  match: fuzzy
+
+- pattern: 专业人员
+  replace: 售后同事
+  match: fuzzy
+
+- pattern: 100%
+  replace: 尽可能
+  match: fuzzy
+
+- pattern: 百分百
+  replace: 尽可能
+  match: fuzzy
+
+- pattern: 保证
+  replace: 尽量
+  match: fuzzy
+
+- pattern: 绝对
+  replace: 比较
+  match: fuzzy
+
+- pattern: 肯定
+  replace: 应该
+  match: fuzzy
+
+- pattern: 最好的
+  replace: 比较合适的
+  match: fuzzy
+
+- pattern: 全网最低
+  replace: 活动价
+  match: fuzzy

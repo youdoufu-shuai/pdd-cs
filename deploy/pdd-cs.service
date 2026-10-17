@@ -1,0 +1,52 @@
+# 拼多多智能客服（多店铺）
+# ---------------------------------------------------------------------------
+# 安装：
+#   sudo useradd -r -m -d /opt/pdd-cs pdd-cs
+#   sudo rsync -a ./ /opt/pdd-cs/ && sudo chown -R pdd-cs:pdd-cs /opt/pdd-cs
+#   sudo -u pdd-cs python3 -m venv /opt/pdd-cs/.venv
+#   sudo -u pdd-cs /opt/pdd-cs/.venv/bin/pip install -r /opt/pdd-cs/requirements.txt
+#   sudo cp deploy/pdd-cs.env.example /etc/pdd-cs.env
+#   sudo nano /etc/pdd-cs.env            # 改端口/令牌/LLM Key
+#   sudo cp deploy/pdd-cs.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pdd-cs
+#   journalctl -u pdd-cs -f
+#
+# 端口/令牌也可以通过配置文件 config/config.yaml 设置：
+#   server.port: 38617 / server.auth_token: "xxxx"
+# 优先级：环境变量/命令行 > 配置文件
+# ---------------------------------------------------------------------------
+[Unit]
+Description=PDD CS - 拼多多多店铺智能客服
+Documentation=file:///opt/pdd-cs/docs/deployment.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pdd-cs
+Group=pdd-cs
+WorkingDirectory=/opt/pdd-cs
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Shanghai
+# 默认端口（可被 /etc/pdd-cs.env 覆盖）
+Environment=PDD_CS_PORT=38617
+EnvironmentFile=-/etc/pdd-cs.env
+# 所有店铺都登录失效时进程会以非 0 退出，这里自动拉起；原因看 journalctl
+ExecStart=/opt/pdd-cs/.venv/bin/python -m pdd_cs run
+Restart=always
+RestartSec=5
+# 优雅停止：SIGINT 让长连接关闭、SQLite 落库
+KillSignal=SIGINT
+TimeoutStopSec=20
+# 日志走 journald
+StandardOutput=journal
+StandardError=journal
+# 基础加固（按需调整）
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ReadWritePaths=/opt/pdd-cs/data /opt/pdd-cs/config/secrets
+
+[Install]
+WantedBy=multi-user.target

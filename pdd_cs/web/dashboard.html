@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>拼多多智能客服 · 运行中心</title>
+<style>
+  :root{
+    --bg:#f2f4f7; --surface:#fff; --surface-2:#f8fafc;
+    --ink:#152238; --ink-2:#3d4d63; --muted:#6b7a90;
+    --line:#e1e6ee; --line-strong:#cbd5e1;
+    --navy:#0f2742; --navy-2:#17395f; --brand:#1d4ed8;
+    --good:#0f7b53; --good-bg:#e8f5ee; --warn:#9a6700; --warn-bg:#fdf6e3;
+    --bad:#b42318; --bad-bg:#fdedec; --info:#1d4ed8; --info-bg:#eef2ff;
+    --radius:6px; --shadow:0 1px 2px rgba(16,24,40,.04);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font:13.5px/1.55 "Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--brand);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .topbar{background:var(--navy);color:#fff;border-bottom:3px solid var(--brand)}
+  .topbar-inner{max-width:1360px;margin:0 auto;padding:0 28px;height:64px;display:flex;align-items:center;gap:16px}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .mark{width:34px;height:34px;border-radius:4px;background:#fff;color:var(--navy);display:grid;place-items:center;font-weight:700;font-size:16px;flex:none}
+  .brand h1{font-size:16px;font-weight:600;margin:0;letter-spacing:.5px;white-space:nowrap}
+  .brand .sub{font-size:12px;color:#a9b8cc;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .shop-select{background:#17395f;border:1px solid rgba(255,255,255,.22);color:#e6edf6;border-radius:4px;padding:6px 10px;font-size:12.5px;outline:none;max-width:220px}
+  .shop-select option{background:#17395f;color:#e6edf6}
+  .status{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.22);border-radius:3px;padding:5px 10px;font-size:12.5px;color:#e6edf6;white-space:nowrap}
+  .dot{width:7px;height:7px;border-radius:50%;background:#94a3b8}
+  .dot.on{background:#34d399}.dot.warn{background:#fbbf24}.dot.err{background:#f87171}
+  .chip{border:1px solid rgba(255,255,255,.18);border-radius:3px;padding:5px 10px;font-size:12.5px;color:#c7d3e3;white-space:nowrap}
+  .clock{font-variant-numeric:tabular-nums;font-size:12.5px;color:#a9b8cc;letter-spacing:.4px}
+  main{max-width:1360px;margin:0 auto;padding:24px 28px 40px}
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 12px}
+  .section-head h2{font-size:15px;font-weight:600;margin:0;letter-spacing:.4px}
+  .section-head .hint{color:var(--muted);font-size:12.5px}
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:13px 16px;box-shadow:var(--shadow)}
+  .kpi .label{color:var(--muted);font-size:12px;letter-spacing:.6px;text-transform:uppercase}
+  .kpi .value{font-size:24px;font-weight:600;margin-top:5px;font-variant-numeric:tabular-nums;line-height:1.2}
+  .kpi .foot{color:var(--muted);font-size:12px;margin-top:3px}
+  .grid{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(320px,1fr);gap:16px}
+  .col-main,.col-side{display:flex;flex-direction:column;gap:16px;min-width:0}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+  .card-head h3{font-size:13px;font-weight:600;margin:0;letter-spacing:.4px}
+  .card-head .meta{color:var(--muted);font-size:11.5px}
+  .table{width:100%}
+  .thead,.tr{display:grid;align-items:center;gap:10px;padding:8px 16px}
+  .thead{color:var(--muted);font-size:11.5px;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--line);background:#fbfcfe;padding-top:7px;padding-bottom:7px}
+  .tr{border-bottom:1px solid #eef2f7}
+  .tr:last-child{border-bottom:none}
+  .tr:hover{background:#fafcff}
+  .tr.clickable{cursor:pointer}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .mono{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--ink-2)}
+  .cell-main{min-width:0}
+  .cell-main .name{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cell-main .sub{color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .empty{padding:24px 16px;text-align:center;color:var(--muted);font-size:12.5px}
+  .tag{display:inline-block;font-size:11.5px;line-height:18px;padding:0 7px;border-radius:3px;border:1px solid transparent;white-space:nowrap}
+  .tag.good{color:var(--good);background:var(--good-bg);border-color:#c9e7d8}
+  .tag.warn{color:var(--warn);background:var(--warn-bg);border-color:#f0e2b6}
+  .tag.bad{color:var(--bad);background:var(--bad-bg);border-color:#f3cfcb}
+  .tag.neutral{color:var(--ink-2);background:#eef2f7;border-color:#dde4ee}
+  .tag.info{color:var(--info);background:var(--info-bg);border-color:#dbe4ff}
+  dl.dl{margin:0;padding:5px 16px 9px}
+  dl.dl .row{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;padding:6px 0;border-bottom:1px dashed #eef2f7;font-size:12.5px}
+  dl.dl .row:last-child{border-bottom:none}
+  dl.dl dt{color:var(--muted)}
+  dl.dl dd{margin:0;color:var(--ink-2);word-break:break-word}
+  .search-row{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);background:#fbfcfe}
+  input[type=text]{flex:1;min-width:0;border:1px solid var(--line-strong);border-radius:4px;padding:7px 10px;font-size:12.5px;color:var(--ink);outline:none;background:#fff}
+  input[type=text]:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(29,78,216,.08)}
+  button{border:1px solid var(--navy);background:var(--navy);color:#fff;border-radius:4px;padding:7px 14px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+  button:hover{background:var(--navy-2)}
+  button.ghost{background:#fff;color:var(--ink-2);border-color:var(--line-strong)}
+  button.ghost:hover{background:#f1f5f9}
+  .sim-row{display:flex;gap:8px;padding:12px 16px 8px}
+  pre{margin:0;padding:0 16px 14px;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--ink-2);max-height:260px;overflow:auto}
+  .note{padding:13px 16px;color:var(--muted);font-size:12px;line-height:1.7}
+  .note strong{color:var(--ink-2);font-weight:600}
+  .bars{display:flex;align-items:flex-end;gap:4px;height:86px;padding:14px 16px 18px;overflow-x:auto}
+  .bar{flex:0 0 16px;width:16px;background:#c7d5f7;border-radius:2px 2px 0 0;min-height:3px;position:relative}
+  .bar>span{position:absolute;bottom:-16px;left:0;right:0;text-align:center;font-size:9px;color:var(--muted)}
+  .rank{display:flex;justify-content:space-between;gap:8px;padding:6px 16px;font-size:12.5px;border-bottom:1px dashed #eef2f7}
+  .rank:last-child{border-bottom:none}
+  .rank .r{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rank .n{color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
+  .mini-title{padding:10px 16px 2px;font-size:11.5px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+  .msg-list{max-height:280px;overflow:auto;padding:6px 16px 10px}
+  .msg{display:grid;grid-template-columns:74px 40px minmax(0,1fr);gap:8px;padding:6px 0;border-bottom:1px dashed #eef2f7;font-size:12.5px}
+  .msg:last-child{border-bottom:none}
+  .msg .t{color:var(--muted);font-variant-numeric:tabular-nums}
+  .msg .d{color:var(--muted)}
+  .msg .c{color:var(--ink-2);word-break:break-word}
+  .msg.out .c{color:#1f3a5f}
+  footer{max-width:1360px;margin:0 auto;padding:0 28px 28px;color:var(--muted);font-size:12px;display:flex;gap:16px;flex-wrap:wrap}
+  footer .sep{color:var(--line-strong)}
+  @media (max-width:1180px){.kpis{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}}
+  @media (max-width:680px){
+    .topbar-inner{padding:10px 16px;height:auto;flex-wrap:wrap}
+    main{padding:16px 16px 30px}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    footer{padding:0 16px 24px}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="mark">拼</div>
+      <div style="min-width:0">
+        <h1>拼多多智能客服 · 运行中心</h1>
+        <div class="sub" id="shop">正在加载…</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <select class="shop-select" id="shop-select" title="切换店铺">
+        <option value="all">全部店铺</option>
+      </select>
+      <div class="status"><span class="dot" id="conn-dot"></span><span id="conn-text">连接中</span></div>
+      <div class="chip" id="llm-pill">AI 未启用</div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="section-head">
+    <h2>运营概览</h2>
+    <span class="hint">数据每 <b id="refresh">5</b> 秒自动刷新 · 仅本机访问</span>
+  </div>
+  <div class="kpis" id="kpis"></div>
+
+  <section class="card" id="shops-card" style="margin-bottom:16px;display:none">
+    <div class="card-head"><h3>店铺状态</h3><span class="meta">多店铺统一接待</span></div>
+    <div class="table" id="shops"></div>
+  </section>
+
+  <div class="grid">
+    <div class="col-main">
+      <section class="card">
+        <div class="card-head"><h3>待处理队列</h3><span class="meta" id="pending-meta">超时未回 / 转接失败 / 人工接管</span></div>
+        <div class="table" id="pending"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>会话监控</h3><span class="meta" id="conv-meta"></span></div>
+        <div class="search-row">
+          <input type="text" id="conv-search" placeholder="搜索客户昵称 / uid / 消息内容 / 订单号"/>
+          <button class="ghost" id="conv-search-btn">搜索</button>
+          <button class="ghost" id="conv-reset-btn">重置</button>
+        </div>
+        <div class="table" id="conversations"></div>
+      </section>
+
+      <section class="card" id="detail-card" style="display:none">
+        <div class="card-head"><h3 id="detail-title">会话详情</h3><span class="meta" id="detail-meta"></span></div>
+        <div class="msg-list" id="detail-messages"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>风控与合规事件</h3><span class="meta">发送前拦截 / 改写 / 转接情况</span></div>
+        <div class="table" id="risk"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>决策测试台</h3><span class="meta">试运行，不会发送消息</span></div>
+        <div class="sim-row">
+          <input type="text" id="sim-input" placeholder="输入客户一句话，例如：什么时候发货？"/>
+          <button id="sim-btn">运行测试</button>
+        </div>
+        <pre id="sim-output">等待输入…</pre>
+      </section>
+    </div>
+
+    <aside class="col-side">
+      <section class="card">
+        <div class="card-head"><h3>运行状态</h3><span class="meta" id="info-meta">本机服务</span></div>
+        <dl class="dl" id="info"></dl>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>运营洞察</h3><span class="meta">最近 7 天</span></div>
+        <div class="mini-title">近 24 小时进线</div>
+        <div class="bars" id="hourly"></div>
+        <div style="height:10px"></div>
+        <div class="mini-title">转人工原因</div>
+        <div id="transfer-reasons"></div>
+        <div class="mini-title">命中话术 Top</div>
+        <div id="top-rules"></div>
+        <div class="mini-title">知识缺口（未答好）</div>
+        <div id="gaps"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>会话质检</h3><span class="meta" id="qc-meta"></span></div>
+        <div class="table" id="qc"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>接待策略</h3><span class="meta">平台规则合规</span></div>
+        <dl class="dl" id="policy"></dl>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>使用提示</h3></div>
+        <div class="note">
+          <strong>多店铺聚合。</strong>右上角可切换店铺，全部店铺时 KPI 为聚合值。
+          <br/><strong>人工优先。</strong>投诉、售后、安全、大额、情绪激动会自动转人工并暂停自动回复。
+          <br/><strong>规则可调。</strong>承诺拦截、敏感词、响应阈值在 <code>config/rules/</code> 与 <code>config/config.yaml</code> 维护。
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<footer>
+  <span>pdd-cs v1.2</span>
+  <span class="sep">|</span>
+  <span>接口：<a href="/api/status" target="_blank">status</a> · <a href="/api/pending" target="_blank">pending</a> · <a href="/api/insights" target="_blank">insights</a> · <a href="/api/qc" target="_blank">qc</a> · <a href="/api/risk" target="_blank">risk</a></span>
+  <span class="sep">|</span>
+  <span>面板仅监听 127.0.0.1，请勿暴露到公网</span>
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = (v, d=0) => (v === null || v === undefined) ? '—' : Number(v).toFixed(d);
+const pct = (v) => (v === null || v === undefined) ? '—' : (v*100).toFixed(1) + '%';
+const shortTime = (s) => { if(!s) return '—'; const m = String(s).match(/\d{4}-\d{2}-\d{2} (\d{2}:\d{2})/); return m ? m[1] : String(s).slice(5,16); };
+
+const STATE_LABEL = {connected:'已连接',connecting:'连接中',reconnecting:'重连中',error:'连接异常',stopped:'已停止'};
+const RESULT_LABEL = {auto_reply:'自动回复',ai_reply:'AI 回复',transfer:'已转人工',human_takeover:'人工接管',filtered:'已过滤',risk_paused:'风控暂停',non_business_hours:'非营业时间',no_match:'未匹配',failed:'发送失败',blacklisted:'黑名单',transfer_notice:'转接提示',human:'人工接待'};
+const RESULT_TONE = (r) => (r==='transfer'||r==='human_takeover')?'warn':(r==='failed'||r==='risk_paused')?'bad':(r==='auto_reply'||r==='ai_reply')?'good':'neutral';
+const RISK_LABEL = {content_blocked:'内容拦截',content_rewritten:'内容改写',frequency_limit:'频率限制',send_rejected:'发送被拒',transfer_failed:'转接失败',session_expired:'登录态过期',duplicate_reply:'重复话术',offsite_divert:'站外导流',risky_promise:'承诺风险'};
+const RISK_CATEGORY = {offsite:'站外导流',promise:'承诺风险',sensitive:'敏感词',blocked:'违禁内容',absolute:'绝对化用语',privacy:'隐私保护',rude:'话术态度',empty:'空内容'};
+const PENDING_LABEL = {transfer:'已转人工',transfer_failed:'转接失败',human_takeover:'人工接管中',auto_reply:'等待回复'};
+
+let selectedShop = 'all';
+let currentShops = [];
+let refreshSeconds = 5;
+
+function formatRiskDetail(detail){
+  return String(detail || '').split('；').map(part => {
+    const idx = part.indexOf(':'); if(idx <= 0) return part;
+    const cat = part.slice(0, idx).trim(); const rest = part.slice(idx+1).trim();
+    return (RISK_CATEGORY[cat] || cat) + '：' + rest;
+  }).join('；');
+}
+function shopName(id){ const s = currentShops.find(x => x.shop_id === id); return s ? s.shop_name : id; }
+
+function selectedStatus(status){
+  if(selectedShop === 'all') return status;
+  const shop = (status.shops || []).find(s => s.shop_id === selectedShop);
+  if(!shop) return status;
+  return Object.assign({}, status, {
+    channel: shop.channel, sla: shop.sla, today: shop.today, policy: shop.policy,
+    business_hours: shop.business_hours, cookie: shop.cookie, llm: shop.llm,
+    shop: shop.shop_name, last_error: shop.last_error
+  });
+}
+
+function renderShopSelect(status){
+  currentShops = status.shops || [];
+  const box = $('shop-select');
+  const current = selectedShop;
+  box.innerHTML = '<option value="all">全部店铺（' + currentShops.length + '）</option>' +
+    currentShops.map(s => `<option value="${esc(s.shop_id)}">${esc(s.shop_name)}</option>`).join('');
+  box.value = currentShops.some(s => s.shop_id === current) ? current : 'all';
+  selectedShop = box.value;
+}
+
+function renderKpis(s){
+  const t = s.today || {}, sla = s.sla || {};
+  const cards = [
+    {label:'今日进线', value:num(t.inbound_messages), foot:(t.conversations||0)+' 个会话'},
+    {label:'自动回复', value:num(t.auto_replies), foot:'今日发送总量'},
+    {label:'转人工', value:num(t.transfers), foot:(t.conversations ? pct((t.transfers||0)/(t.conversations||1)) : '—') + ' 转接率'},
+    {label:'首响达标率', value:pct(sla.within_sla_rate), foot:'红线 ' + num(sla.sla_threshold_seconds) + ' 秒'},
+    {label:'平均首响', value:(sla.avg_first_response_seconds==null?'—':num(sla.avg_first_response_seconds,1)+'s'), foot:'P90 ' + (sla.p90_first_response_seconds==null?'—':num(sla.p90_first_response_seconds,1)+'s')},
+    {label:'待处理', value:num(s.pending_count), foot:'超时 ' + num(sla.overdue_count||0) + ' · 风控 ' + num(t.risk_events)},
+  ];
+  $('kpis').innerHTML = cards.map(c => `<div class="kpi"><div class="label">${esc(c.label)}</div><div class="value">${esc(c.value)}</div><div class="foot">${esc(c.foot)}</div></div>`).join('');
+}
+
+function renderShops(shops){
+  const card = $('shops-card');
+  if(selectedShop !== 'all' || !shops.length){ card.style.display = 'none'; return; }
+  card.style.display = '';
+  const head = '<div class="thead" style="grid-template-columns:1.4fr .9fr .8fr .8fr .8fr 1fr .8fr">'+
+    '<span>店铺</span><span>连接</span><span class="num">进线</span><span class="num">自动回复</span>'+
+    '<span class="num">转人工</span><span class="num">首响达标</span><span class="num">待处理</span></div>';
+  const cols = '1.4fr .9fr .8fr .8fr .8fr 1fr .8fr';
+  $('shops').innerHTML = head + shops.map(s => {
+    const ch = s.channel || {};
+    const tone = ch.connected ? 'good' : (ch.state === 'error' ? 'bad' : 'warn');
+    return `<div class="tr" style="grid-template-columns:${cols}"><div class="cell-main"><div class="name">${esc(s.shop_name)}</div><div class="sub">${esc(s.shop_id)}</div></div>
+      <div><span class="tag ${tone}">${esc(STATE_LABEL[ch.state] || ch.state || '未知')}</span></div>
+      <div class="num mono">${num(s.today.inbound_messages)}</div>
+      <div class="num mono">${num(s.today.auto_replies)}</div>
+      <div class="num mono">${num(s.today.transfers)}</div>
+      <div class="num mono">${pct(s.sla.within_sla_rate)}</div>
+      <div class="num mono">${num((s.overdue||[]).length)}</div></div>`;
+  }).join('');
+}
+
+function renderPending(list){
+  const head = '<div class="thead" style="grid-template-columns:1.1fr .9fr .8fr .6fr 1fr">'+
+    '<span>客户</span><span>店铺</span><span>状态</span><span class="num">等待</span><span>说明</span></div>';
+  $('pending-meta').textContent = list.length ? list.length + ' 个待处理' : '超时未回 / 转接失败 / 人工接管';
+  if(!list.length){ $('pending').innerHTML = head + '<div class="empty">暂无待处理会话</div>'; return; }
+  const cols = '1.1fr .9fr .8fr .6fr 1fr';
+  $('pending').innerHTML = head + list.map(p => {
+    const label = PENDING_LABEL[p.last_result] || p.last_result || '待处理';
+    const tone = (p.last_result === 'transfer_failed') ? 'bad' : (p.human_takeover_until ? 'warn' : 'info');
+    const wait = p.waiting_seconds != null ? Math.round(p.waiting_seconds) + 's' : '—';
+    const detail = (p.last_order && p.last_order.order_id) ? ('订单 ' + p.last_order.order_id) : (p.human_takeover_until ? '人工接管中' : '客户等待回复');
+    return `<div class="tr" style="grid-template-columns:${cols}"><div class="cell-main"><div class="name">${esc(p.nickname || ('客户 ' + String(p.uid).slice(-6)))}</div><div class="sub">UID ${esc(String(p.uid).slice(-8))}</div></div>
+      <div>${esc(p.shop_name || shopName(p.shop_id))}</div>
+      <div><span class="tag ${tone}">${esc(label)}</span></div>
+      <div class="num mono">${esc(wait)}</div>
+      <div class="cell-main"><div class="sub">${esc(detail)}</div></div></div>`;
+  }).join('');
+}
+
+function renderConversations(list){
+  $('conv-meta').textContent = list.length ? list.length + ' 个会话' : '';
+  const cols = selectedShop === 'all'
+    ? '1.3fr .9fr 1fr 52px 52px 76px'
+    : '1.5fr 1fr 52px 52px 76px';
+  const head = '<div class="thead" style="grid-template-columns:' + cols + '">'+
+    '<span>客户</span>' + (selectedShop==='all'?'<span>店铺</span>':'') + '<span>最近处理</span><span class="num">进线</span><span class="num">回复</span><span class="num">时间</span></div>';
+  if(!list.length){ $('conversations').innerHTML = head + '<div class="empty">暂无会话</div>'; return; }
+  $('conversations').innerHTML = head + list.map(c => {
+    const label = RESULT_LABEL[c.last_result] || c.last_result || '—';
+    return `<div class="tr clickable" style="grid-template-columns:${cols}" data-shop="${esc(c.shop_id)}" data-uid="${esc(c.uid)}" data-name="${esc(c.nickname || '')}">
+      <div class="cell-main"><div class="name">${esc(c.nickname || ('客户 ' + String(c.uid).slice(-6)))}</div><div class="sub">UID ${esc(String(c.uid).slice(-8))}</div></div>
+      ${selectedShop==='all'?`<div>${esc(shopName(c.shop_id))}</div>`:''}
+      <div><span class="tag ${RESULT_TONE(c.last_result)}">${esc(label)}</span></div>
+      <div class="num mono">${num(c.inbound_count)}</div>
+      <div class="num mono">${num(c.outbound_count)}</div>
+      <div class="num mono">${esc(shortTime(c.last_in_at))}</div></div>`;
+  }).join('');
+  document.querySelectorAll('#conversations .tr.clickable').forEach(row => {
+    row.addEventListener('click', () => openConversation(row.dataset.shop, row.dataset.uid, row.dataset.name));
+  });
+}
+
+async function openConversation(shop, uid, name){
+  $('detail-card').style.display = '';
+  $('detail-title').textContent = '会话详情 · ' + (name || uid);
+  $('detail-meta').textContent = shopName(shop) + ' · ' + uid;
+  $('detail-messages').innerHTML = '<div class="empty">加载中…</div>';
+  try{
+    const data = await fetch('/api/messages?uid=' + encodeURIComponent(uid) + '&shop=' + encodeURIComponent(shop) + '&limit=100', {cache:'no-store'}).then(r => r.json());
+    const rows = data.data || [];
+    if(!rows.length){ $('detail-messages').innerHTML = '<div class="empty">暂无消息</div>'; return; }
+    $('detail-messages').innerHTML = rows.map(m => {
+      const dir = m.direction === 'in' ? '客户' : '客服';
+      return `<div class="msg ${m.direction === 'out' ? 'out' : ''}"><div class="t">${esc(shortTime(m.created_at))}</div><div class="d">${esc(dir)}</div><div class="c">${esc(m.content)}</div></div>`;
+    }).join('');
+  }catch(e){ $('detail-messages').innerHTML = '<div class="empty">加载失败：' + esc(e) + '</div>'; }
+}
+
+function renderRisk(list){
+  const cols = selectedShop === 'all' ? '86px 118px minmax(0,1fr)' : '86px 118px minmax(0,1fr)';
+  const head = '<div class="thead" style="grid-template-columns:' + cols + '">'+
+    '<span>时间</span><span>事件类型</span><span>详情</span></div>';
+  if(!list.length){ $('risk').innerHTML = head + '<div class="empty">暂无风控事件</div>'; return; }
+  const riskCols = '86px 118px minmax(0,1fr)';
+  $('risk').innerHTML = head + list.slice(0,10).map(r => `
+    <div class="tr" style="grid-template-columns:${riskCols}"><div class="mono">${esc(shortTime(r.created_at))}</div>
+    <div><span class="tag neutral">${esc(RISK_LABEL[r.risk_type] || r.risk_type)}</span></div>
+    <div class="cell-main"><div class="sub" title="${esc(formatRiskDetail(r.detail))}">${selectedShop==='all'?esc(shopName(r.shop_id))+' · ':''}${esc(formatRiskDetail(r.detail))}</div></div></div>`).join('');
+}
+
+function renderInfo(s){
+  const ch = s.channel || {};
+  const rows = [
+    ['店铺', s.shop || (selectedShop==='all' ? '全部店铺' : selectedShop)],
+    ['连接状态', STATE_LABEL[ch.state] || ch.state || '未知'],
+    ['连接时间', ch.connected_at || '—'],
+    ['最近收消息', ch.last_frame_at || '—'],
+    ['重连次数', ch.reconnects ?? 0],
+    ['AI 模型', (s.llm && s.llm.enabled) ? s.llm.model : '未启用（关键词 / 默认回复）'],
+    ['知识库', (s.knowledge?.snippets ?? 0) + ' 片段 / ' + (s.knowledge?.files ?? 0) + ' 文件'],
+    ['规则数量', '关键词 ' + (s.rules?.keywords ?? 0) + ' · 转人工 ' + (s.rules?.transfers ?? 0) + ' · 黑名单 ' + (s.rules?.blacklist ?? 0)],
+    ['登录态', s.cookie || '—'],
+    ['启动时间', s.started_at || '—'],
+    ['最近错误', s.last_error || '无'],
+  ];
+  $('info').innerHTML = rows.map(([k,v]) => `<div class="row"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
+}
+
+function renderPolicy(s){
+  const p = s.policy || {}; const bh = s.business_hours || {};
+  const rows = [
+    ['首响红线', num(p.first_response_seconds) + ' 秒（预警 ' + num(p.warn_seconds) + ' 秒）'],
+    ['重复话术', '相似度 ≥ ' + (p.duplicate_threshold ?? '—') + ' 自动改写'],
+    ['回复频率', '单会话 ' + (p.session_reply_limit ?? '—') + ' 条 / ' + Math.round((p.window_seconds||300)/60) + ' 分钟'],
+    ['人工接管', (p.human_takeover_minutes ?? '—') + ' 分钟'],
+    ['营业时间', bh.enabled ? (bh.start + ' ~ ' + bh.end) : '全天'],
+    ['身份披露', p.disclosure_enabled ? '已启用（首条说明智能客服）' : '未启用'],
+    ['告警通知', (s.alerts && s.alerts.enabled) ? ('已开启 · ' + s.alerts.format) : '未开启'],
+    ['掉线告警', (s.alerts && s.alerts.enabled) ? ('掉线超过 ' + (s.alerts.offline_after_seconds || 120) + ' 秒推送到群') : '未开启'],
+    ['服务心跳', (s.monitor && s.monitor.enabled) ? ('每 ' + Math.round((s.monitor.interval_seconds || 300) / 60) + ' 分钟上报一次') : '未配置'],
+    ['面板访问', (s.server ? (s.server.host + ':' + s.server.port + (s.server.auth_required ? ' · 已启用令牌' : ' · 仅本机')) : '—')],
+  ];
+  $('policy').innerHTML = rows.map(([k,v]) => `<div class="row"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
+}
+
+function renderInsights(data){
+  const hourly = data.hourly || [];
+  const max = Math.max(1, ...hourly.map(h => h.count));
+  $('hourly').innerHTML = hourly.length ? hourly.slice(-24).map(h => {
+    const label = String(h.hour).slice(-2);
+    return `<div class="bar" style="height:${Math.max(4, h.count/max*62)}px" title="${esc(h.hour)} · ${h.count} 条"><span>${esc(label)}</span></div>`;
+  }).join('') : '<div class="empty" style="padding:0">暂无数据</div>';
+
+  const ranks = (items, render) => items.length ? items.map(render).join('') : '<div class="rank"><span class="r">暂无数据</span><span class="n">—</span></div>';
+  $('transfer-reasons').innerHTML = ranks(data.transfer_reasons || [], x => `<div class="rank"><span class="r">${esc(x.reason)}</span><span class="n">${x.count}</span></div>`);
+  $('top-rules').innerHTML = ranks(data.top_rules || [], x => `<div class="rank"><span class="r">${esc(x.rule_id)}</span><span class="n">${x.count}</span></div>`);
+  $('gaps').innerHTML = ranks(data.knowledge_gaps || [], x => `<div class="rank"><span class="r" title="${esc(x.question)}">${esc(x.question)}</span><span class="n">${x.count}</span></div>`);
+}
+
+function renderQC(data){
+  const hits = (data.hits || []).slice(0, 12);
+  const summary = data.summary || {};
+  $('qc-meta').textContent = '高 ' + (summary.high||0) + ' · 中 ' + (summary.medium||0) + ' · 低 ' + (summary.low||0) + ' · 扫描 ' + (data.scanned_conversations||0) + ' 会话';
+  const head = '<div class="thead" style="grid-template-columns:56px minmax(0,1fr) 74px"><span>级别</span><span>命中</span><span class="num">店铺</span></div>';
+  if(!hits.length){ $('qc').innerHTML = head + '<div class="empty">暂无质检命中</div>'; return; }
+  const qcCols = '56px minmax(0,1fr) 74px';
+  $('qc').innerHTML = head + hits.map(h => {
+    const level = h.severity === 'high' ? 'bad' : (h.severity === 'medium' ? 'warn' : 'neutral');
+    const label = h.severity === 'high' ? '高' : (h.severity === 'medium' ? '中' : '低');
+    return `<div class="tr" style="grid-template-columns:${qcCols}"><div><span class="tag ${level}">${label}</span></div>
+      <div class="cell-main"><div class="name" style="font-weight:500">${esc(h.rule_name)}</div>
+      <div class="sub" title="${esc(h.snippet || h.detail)}">${esc(h.snippet || h.detail)}</div></div>
+      <div class="num mono">${esc(shopName(h.shop_id))}</div></div>`;
+  }).join('');
+}
+
+async function load(){
+  try{
+    const status = await fetch('/api/status', {cache:'no-store'}).then(r => r.json());
+    refreshSeconds = status.refresh_seconds || refreshSeconds;
+    $('refresh').textContent = refreshSeconds;
+    renderShopSelect(status);
+    const s = selectedStatus(status);
+    $('shop').textContent = (s.shop || '未命名店铺') + ' · 启动于 ' + (s.started_at || '—');
+    const ch = s.channel || {};
+    const dot = $('conn-dot');
+    dot.className = 'dot ' + (ch.connected ? 'on' : (ch.state === 'error' ? 'err' : 'warn'));
+    $('conn-text').textContent = STATE_LABEL[ch.state] || ch.state || '未知';
+    $('llm-pill').textContent = (s.llm && s.llm.enabled) ? ('AI · ' + s.llm.model) : 'AI 未启用';
+    renderKpis(s); renderShops(status.shops || []); renderInfo(s); renderPolicy(s);
+
+    const shopQuery = selectedShop === 'all' ? '' : '&shop=' + encodeURIComponent(selectedShop);
+    const q = $('conv-search').value.trim();
+    const searchQuery = q ? '&search=' + encodeURIComponent(q) : '';
+    const [conv, pending, risk, insights, qc] = await Promise.all([
+      fetch('/api/conversations?limit=20' + shopQuery + searchQuery, {cache:'no-store'}).then(r => r.json()),
+      fetch('/api/pending' + (shopQuery ? '?' + shopQuery.slice(1) : ''), {cache:'no-store'}).then(r => r.json()),
+      fetch('/api/risk?limit=20' + shopQuery, {cache:'no-store'}).then(r => r.json()),
+      fetch('/api/insights' + (shopQuery ? '?' + shopQuery.slice(1) : ''), {cache:'no-store'}).then(r => r.json()),
+      fetch('/api/qc' + (shopQuery ? '?' + shopQuery.slice(1) : ''), {cache:'no-store'}).then(r => r.json()),
+    ]);
+    renderConversations(conv.data || []);
+    renderPending(pending.data || []);
+    renderRisk(risk.data || []);
+    renderInsights(insights || {});
+    renderQC(qc || {});
+  }catch(e){
+    $('conn-text').textContent = '面板连接失败';
+    $('conn-dot').className = 'dot err';
+  }
+  $('clock').textContent = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+}
+
+async function simulate(){
+  const text = $('sim-input').value.trim();
+  if(!text) return;
+  $('sim-output').textContent = '推理中…';
+  try{
+    const payload = {text};
+    if(selectedShop !== 'all') payload.shop = selectedShop;
+    const data = await fetch('/api/simulate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r => r.json());
+    $('sim-output').textContent = JSON.stringify(data, null, 2);
+  }catch(e){ $('sim-output').textContent = '测试失败: ' + e; }
+}
+
+$('shop-select').addEventListener('change', e => { selectedShop = e.target.value; load(); });
+$('sim-btn').addEventListener('click', simulate);
+$('sim-input').addEventListener('keydown', e => { if(e.key === 'Enter') simulate(); });
+$('conv-search-btn').addEventListener('click', load);
+$('conv-reset-btn').addEventListener('click', () => { $('conv-search').value = ''; load(); });
+$('conv-search').addEventListener('keydown', e => { if(e.key === 'Enter') load(); });
+
+load();
+setInterval(load, refreshSeconds * 1000);
+</script>
+</body>
+</html>

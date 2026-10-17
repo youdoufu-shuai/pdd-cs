@@ -1,0 +1,17 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+.pytest_cache
+data/
+data-demo/
+config/secrets/
+config/config.yaml
+docs/dashboard.png
+tests/
+scripts/
+deploy/
+*.db
+*.db-wal
+*.db-shm
+.env

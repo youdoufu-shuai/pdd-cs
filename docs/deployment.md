@@ -1,0 +1,318 @@
+# 部署到服务器 & 掉线通知
+
+本文回答两个问题：
+
+1. 店铺掉线 / 登录过期 / 进程挂了，**怎么通知到我**？
+2. 这个项目**能不能放到服务器上**，怎么放？
+
+---
+
+## 零、先明确：本地电脑能不能关机？
+
+**不能。** 这个项目是一个本地常驻程序，不是云端 SaaS：
+
+- 电脑关机 / 睡眠 / 合盖 / 断网 / 系统更新重启 → 进程停止 → 拼多多长连接断开；
+- 这段时间客户发来的消息**不会自动回复**，客户只能干等（平台侧消息不会丢，但首响、回复率、
+  负体验考核会受影响）；
+- 重新开机后程序会重连并继续接待，但已经错过的消息不会补发。
+
+所以结论很直接：
+
+| 运行位置 | 关机/断网后 | 适合 |
+| --- | --- | --- |
+| 自己电脑（本机） | ❌ 停止接待 | 试用、调试、白天有人值守的工位 |
+| 云服务器 | ✅ 7×24 运行（除非主动关机） | **正式长期使用（推荐）** |
+| 公司常开电脑 / 迷你主机 / NAS | ✅ 只要不断电断网 | 不想买云服务器、有稳定网络和 UPS |
+| 树莓派等小设备 | ⚠️ 能跑，但网络稳定性和维护成本一般 | 折腾/备用，不建议做主方案 |
+
+如果店铺是 7×24 接待（拼多多客服基本如此），**必须放在一台常开的机器上**。云服务器最低配
+1C1G 一年通常几百元，比起漏消息导致的回复率/负体验考核，成本很低。
+
+## 一、掉线了怎么通知你
+
+### 1. 三层通知，覆盖不同故障
+
+| 故障 | 谁来发现 | 怎么通知 |
+| --- | --- | --- |
+| 店铺长连接断开、登录态失效 | 程序自己（10 秒巡检） | Webhook → 钉钉 / 飞书 / 企业微信群 |
+| 转人工失败、客户超时没人回 | 程序自己 | 同上（可单独开关事件） |
+| **进程崩溃 / 服务器宕机 / 断网** | **程序自己发不出消息** | 外部监控收不到“服务心跳” → 打电话/发短信 |
+
+所以正确姿势是 **Webhook（写） + 心跳（反向证明活着）** 两条腿走路。
+
+### 2. Webhook 告警（程序还活着时）
+
+在 `config/config.yaml` 里填一个群机器人地址即可：
+
+```yaml
+alerts:
+  enabled: true
+  webhook_url: https://oapi.dingtalk.com/robot/send?access_token=xxxx
+  format: dingtalk              # generic | dingtalk | feishu | wecom
+  events:
+    - shop_offline              # 店铺掉线（重点）
+    - shop_online               # 恢复通知
+    - session_expired           # 登录态过期
+    - connection_error
+    - transfer_failed
+    - sla_overdue               # 客户等待超时
+  min_interval_seconds: 60
+  offline_after_seconds: 120    # 掉线超过 2 分钟开始告警
+  offline_repeat_seconds: 1800  # 一直没恢复：每 30 分钟再提醒一次
+```
+
+- 钉钉群：群设置 → 机器人 → 添加自定义机器人 → 复制 Webhook；
+- 飞书群：群设置 → 群机器人 → 自定义机器人；
+- 企业微信群：群设置 → 群机器人 → 添加；
+- 自建/其它：`format: generic`，收到 `{"title","text","event","shop_id","at"}` JSON。
+
+改完先测一下：
+
+```bash
+python -m pdd_cs alert-test
+```
+
+钉钉/飞书如果开了“签名校验”，把加签参数直接拼进 `webhook_url` 即可。
+
+### 3. 进程级心跳（进程挂了也能通知）
+
+程序每 5 分钟向一个外部地址报一次“我还活着”。外部监控超过 15 分钟没收到就报警——这样
+进程崩溃、服务器宕机、断网都能被发现。
+
+推荐用现成服务（都支持 Webhook 告警到钉钉/飞书/企微/短信）：
+
+- **Healthchecks.io**（最省事）：新建 Check，周期 5 分钟，复制 ping URL 填到配置；
+- **Uptime Kuma**（自建，免费）：新建 HTTP(s) 监控，URL 填 `http://你的服务器:38617/healthz?strict=1`；
+- 阿里云云监控 / 腾讯云拨测：拨测 `/healthz?strict=1`，状态码非 200 即告警。
+
+配置：
+
+```yaml
+monitor:
+  heartbeat_url: https://hc-ping.com/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  heartbeat_interval_seconds: 300
+  heartbeat_timeout_seconds: 10
+  heartbeat_method: POST        # Healthchecks.io 用 POST 或 GET 都行
+```
+
+### 4. 健康检查接口
+
+| 接口 | 行为 |
+| --- | --- |
+| `GET /healthz` | 进程活着就 200（liveness） |
+| `GET /healthz?strict=1` | 所有店铺都连接才 200；有店铺掉线/启动失败返回 **503**（readiness） |
+
+外部监控建议监控 **strict** 版本，这样“进程活着但店铺全掉线”也能报警。
+`docker ps` / Docker healthcheck 默认就用了 strict 版本。
+
+### 5. 进程守护（挂了自动拉起）
+
+- systemd：`deploy/pdd-cs.service`，`Restart=always`，5 秒后自动重启；
+- Docker：`restart: unless-stopped`；
+- 所有店铺登录都失效时 `run` 会以非 0 退出，配合守护进程会自动重启，日志里能看到原因，
+  同时你会收到 `session_expired` 告警。
+
+---
+
+## 二、能不能放服务器上
+
+**可以，而且推荐。** 但有几个和本地运行不一样的坑，按下面做就行。
+
+### 1. 先选部署方式
+
+| 方式 | 适合 | 优点 | 注意 |
+| --- | --- | --- | --- |
+| 本地电脑 / 公司常开电脑 | 1–2 个店先试水 | 登录方便、IP 稳定 | 断电断网就停，需开机自启 |
+| Windows 服务器（带桌面） | 习惯 Windows 的团队 | 可以直接 RDP 里扫码登录 | 占资源，建议 2C4G 起 |
+| Linux 服务器 + Docker | 多店铺、正式长期运行 | 稳定、省资源、易备份升级 | 登录要本机扫码后传 Cookie |
+
+资源参考：**1 核 1G 内存、10G 磁盘** 足够跑 2–5 个店铺（SQLite + 长连接，很轻）。
+网络要求：服务器能稳定访问 `*.pinduoduo.com`（建议国内机房），**固定公网 IP 更稳**。
+
+### 2. 登录问题（服务器没有桌面怎么办）
+
+拼多多商家后台登录是扫码/账号登录，服务器没有图形界面时有两个办法：
+
+**方案 A（推荐）：本机登录，上传 Cookie**
+
+```bash
+# 1) 在你自己的电脑上（有 Chrome 桌面）登录
+python -m pdd_cs login --shop shop-a
+python -m pdd_cs login --shop shop-b
+
+# 2) 把 Cookie 文件传到服务器（Cookie 等同账号密码，务必走 scp/内网）
+scp config/secrets/shop-a.json user@server:/opt/pdd-cs/config/secrets/
+scp config/secrets/shop-b.json user@server:/opt/pdd-cs/config/secrets/
+
+# 3) 服务器上改权限并自检
+chmod 600 /opt/pdd-cs/config/secrets/*.json
+python -m pdd_cs doctor
+```
+
+**方案 B：Windows 服务器 RDP**——直接在远程桌面里跑 `login`，最接近本地体验，但要注意
+远程桌面断开后程序要作为服务/计划任务常驻（不要依赖登录会话）。
+
+**方案 C：Linux + Xvfb + Chrome**——技术上可行（虚拟显示里打开 Chrome 截图二维码，
+用手机扫），但维护成本高，不推荐日常用。
+
+> 提醒：服务器 IP 与常用登录地差异过大时，拼多多可能判定异地登录并踢下线。
+> 建议用固定 IP、先在非高峰小流量验证；被踢后程序会告警，重新在常用网络登录即可。
+
+### 2.1 端口与访问令牌（服务器必看）
+
+**端口**：默认 **38617**，刻意避开 80/443/8080/8787 等常见端口，减少冲突和扫描。
+三种改法（优先级从高到低）：
+
+```bash
+# 1) 临时/命令行
+python -m pdd_cs run --port 41000
+
+# 2) 环境变量（Docker / systemd 最常用）
+PDD_CS_PORT=41000 python -m pdd_cs run
+# 或写进 deploy/.env / /etc/pdd-cs.env：PDD_CS_PORT=41000
+
+# 3) 配置文件 config/config.yaml
+server:
+  host: 127.0.0.1
+  port: 41000
+  auth_token: ""
+```
+
+`PDD_CS_HOST` / `PDD_CS_PORT` / `PDD_CS_AUTH_TOKEN` / `PDD_CS_DATA_DIR` / `PDD_CS_LOG_LEVEL`
+都可以用环境变量覆盖，Docker 和 systemd 已按这套变量配好。
+
+**访问令牌**：为了服务器安全，面板默认只监听 `127.0.0.1`（SSH 隧道访问，不需要令牌）。
+如果确实要让面板监听 `0.0.0.0` 或内网 IP，**程序会强制要求设置令牌**：
+
+```bash
+# 生成一个 32 字节随机令牌
+python -c "import secrets;print(secrets.token_urlsafe(32))"
+
+# 方式 A：配置文件
+server:
+  host: 0.0.0.0
+  auth_token: "把生成的长随机串填这里"
+
+# 方式 B：环境变量（Docker compose 已用这个）
+export PDD_CS_AUTH_TOKEN=生成的令牌
+```
+
+带令牌访问：
+
+- 浏览器：`http://服务器:38617/?token=你的令牌`（首次访问后写 Cookie，之后不用再带）；
+- 接口/脚本：请求头 `X-Auth-Token: 你的令牌`，或 URL 参数 `?token=`；
+- `/healthz` 不需要令牌（供 Docker/监控使用），其余页面与 `/api/*` 都需要。
+
+**SSH 隧道**（推荐的内网访问方式，不需要开防火墙端口）：
+
+```bash
+ssh -L 38617:127.0.0.1:38617 user@server
+# 浏览器打开 http://127.0.0.1:38617/
+```
+
+**反向代理**（如果一定要公网访问）：Nginx/Caddy 只反代到 `127.0.0.1:38617`，
+配 HTTPS + BasicAuth/SSO + IP 白名单；同时把 `server.auth_token` 当成第二道防线。
+
+### 3. Linux 服务器部署（Docker，推荐）
+
+**一键脚本（推荐）**：上传项目后执行
+
+```bash
+bash deploy/install.sh
+```
+
+脚本会自动：生成 `config/config.yaml`（没有的话）、创建 `deploy/.env` 并写入随机访问令牌
+和默认少见端口 **38617**、构建并启动容器，最后打印面板地址、令牌和 SSH 隧道命令。
+
+**手动步骤**：
+
+
+```bash
+# 服务器上
+sudo apt install -y docker.io docker-compose-v2 git
+git clone <你的仓库> /opt/pdd-cs && cd /opt/pdd-cs
+
+# 准备配置（config.yaml 按需修改：shops、llm、alerts、monitor）
+cp config/config.example.yaml config/config.yaml
+mkdir -p config/secrets data
+# 上传 Cookie 到 config/secrets/
+
+cd deploy
+docker compose up -d --build
+docker compose logs -f          # 看日志
+curl -s "http://127.0.0.1:38617/healthz?strict=1"   # 严格健康检查
+```
+
+面板只绑 `127.0.0.1:38617`，本地电脑通过 SSH 隧道访问：
+
+```bash
+ssh -L 38617:127.0.0.1:38617 user@server
+# 然后浏览器打开 http://127.0.0.1:38617
+```
+
+### 4. Linux 服务器部署（不用 Docker：systemd）
+
+```bash
+sudo useradd -r -m -d /opt/pdd-cs pdd-cs
+sudo rsync -a --exclude data --exclude config/secrets ./ /opt/pdd-cs/
+sudo chown -R pdd-cs:pdd-cs /opt/pdd-cs
+sudo -u pdd-cs python3 -m venv /opt/pdd-cs/.venv
+sudo -u pdd-cs /opt/pdd-cs/.venv/bin/pip install -r /opt/pdd-cs/requirements.txt
+
+sudo cp /opt/pdd-cs/deploy/pdd-cs.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now pdd-cs
+journalctl -u pdd-cs -f
+```
+
+`restart=always` 会让进程崩溃/全部登录失效后自动拉起。
+
+### 5. 安全清单（务必做）
+
+- [ ] 面板只监听 `127.0.0.1`，通过 SSH 隧道/内网访问；**不要直接把 38617 暴露公网**；
+- [ ] 如必须公网访问：Nginx/Caddy 反向代理 + HTTPS + BasicAuth/SSO + IP 白名单；
+- [ ] `config/secrets/`、`data/` 权限 600/700，属主为运行用户；
+- [ ] 不要把 `config/secrets/`、`data/`、`config/config.yaml` 提交到 git（项目 `.gitignore`
+      和 `.dockerignore` 已默认排除）；
+- [ ] 服务器防火墙只开 SSH 和必要的代理端口；
+- [ ] 定期备份 `data/pdd_cs.db` 与 `config/`（Cookie 会过期，备份主要用于报表与话术）。
+
+### 6. 升级与迁移
+
+```bash
+# Docker
+cd /opt/pdd-cs && git pull
+cd deploy && docker compose up -d --build
+
+# systemd
+cd /opt/pdd-cs && git pull
+sudo -u pdd-cs .venv/bin/pip install -r requirements.txt
+sudo systemctl restart pdd-cs
+```
+
+- 数据库自动迁移（单店铺旧库会迁移为 `default` 店铺，旧表保留备份）；
+- 升级前建议先 `cp data/pdd_cs.db data/pdd_cs.db.bak`；
+- 建议先在本机/测试店铺跑一遍 `pytest` 和 `lint` 再升级。
+
+### 7. 常见问题
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| 启动提示所有店铺登录失效 | Cookie 过期/异地被踢 | 本机重新登录，重传 Cookie 文件 |
+| 面板打不开 | 只绑了 127.0.0.1 | 用 SSH 隧道；或改 `server.host` + 防火墙白名单 |
+| 告警收不到 | Webhook 地址/关键词/加签不对 | `python -m pdd_cs alert-test` 测试；钉钉注意安全关键词 |
+| 容器一直 unhealthy | 有店铺掉线（strict 检查） | 看 `docker compose logs` + 面板「店铺状态」 |
+| 客户消息延迟大 | 服务器网络差/跨地域 | 换国内机房；看面板「最近收消息」时间 |
+| 进程反复重启 | 所有店铺起不来 | 先 `doctor`；确认 Cookie 与 `config.yaml` |
+
+---
+
+## 三、最小上线清单
+
+1. 服务器：国内 1C1G、固定 IP、能访问拼多多；
+2. 本机登录 → 传 `config/secrets/*.json`；
+3. `config.yaml`：`shops`、`llm`、`alerts`（含 `shop_offline`）、`monitor.heartbeat_url`；
+4. `alert-test` 验证群机器人；
+5. Docker/systemd 启动，确认 `healthz?strict=1` 返回 200；
+6. 在 Uptime Kuma/Healthchecks.io 配一个监控（strict URL 或心跳），告警到手机；
+7. 小流量灰度 1–2 天，看面板「会话质检 / 风控 / 待处理」再逐步放量。

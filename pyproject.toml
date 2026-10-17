@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdd-cs"
+version = "1.2.0"
+description = "拼多多智能客服：基于拼多多商家后台实时消息的 AI 客服（只做拼多多）"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-only" }
+authors = [{ name = "pdd-cs" }]
+dependencies = [
+  "websockets>=13.0,<18.0",
+  "PyYAML>=6.0,<7.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0,<9.0"]
+
+[project.scripts]
+pdd-cs = "pdd_cs.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["pdd_cs*"]
+
+[tool.setuptools.package-data]
+"pdd_cs.web" = ["*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+

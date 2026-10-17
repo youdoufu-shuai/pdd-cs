@@ -1,0 +1,48 @@
+# 拼多多多店铺智能客服 · Docker Compose
+# ---------------------------------------------------------------------------
+# 使用：
+#   1. 在宿主机准备配置：
+#        cp config/config.example.yaml config/config.yaml   # 按需修改
+#        mkdir -p config/secrets data
+#   2. 本机登录后把 config/secrets/*.json 传到服务器（Cookie 等同账号密码）
+#   3. 配置端口与访问令牌：
+#        cp deploy/.env.example deploy/.env
+#        # 修改 deploy/.env 里的 PDD_CS_AUTH_TOKEN（必填）、PDD_CS_PORT
+#   4. 启动：
+#        cd deploy && docker compose up -d --build
+#      日志：docker compose logs -f
+#      面板：http://127.0.0.1:${PDD_CS_PORT}（只绑本机，建议 SSH 隧道访问）
+# ---------------------------------------------------------------------------
+services:
+  pdd-cs:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: pdd-cs:1.2
+    container_name: pdd-cs
+    restart: unless-stopped
+    # SIGINT 优雅退出：关闭长连接、SQLite 落库、停面板
+    stop_signal: SIGINT
+    init: true
+    ports:
+      # 只绑定宿主机回环：外部通过 SSH 隧道访问；如需内网直连，把 127.0.0.1 改成内网 IP
+      - "127.0.0.1:${PDD_CS_PORT:-38617}:${PDD_CS_PORT:-38617}"
+    volumes:
+      - ../config:/app/config
+      - ../data:/app/data
+    environment:
+      TZ: Asia/Shanghai
+      PDD_CS_HOST: 0.0.0.0
+      PDD_CS_PORT: ${PDD_CS_PORT:-38617}
+      PDD_CS_AUTH_TOKEN: ${PDD_CS_AUTH_TOKEN:?请在 deploy/.env 设置 PDD_CS_AUTH_TOKEN（生成：python -c "import secrets;print(secrets.token_urlsafe(32))")}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,urllib.request;port=os.environ.get('PDD_CS_PORT','38617');urllib.request.urlopen('http://127.0.0.1:'+port+'/healthz?strict=1', timeout=6)"]
+      interval: 60s
+      timeout: 8s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
