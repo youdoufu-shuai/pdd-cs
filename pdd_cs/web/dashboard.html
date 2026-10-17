@@ -206,7 +206,7 @@
       <div class="guide-step" style="--step:#2563eb">
         <div class="n">① 登录店铺</div>
         <div class="desc">手机扫码登录拼多多商家后台，程序自动保存登录态。</div>
-        <code class="cmd">python -m pdd_cs login</code>
+        <code class="cmd" id="guide-login-cmd">python -m pdd_cs login</code>
         <span class="guide-status todo" id="guide-login">等待登录</span>
       </div>
       <div class="guide-step" style="--step:#0d9488">
@@ -406,6 +406,11 @@ function renderGuide(status){
   const connected = shops.filter(x => x.channel && x.channel.connected).length;
   const started = !!status.started;
   const loginEl = $('guide-login'), runEl = $('guide-run');
+  const loginCmd = shops.length > 1
+    ? `python -m pdd_cs login --shop ${shops[0].shop_id}`
+    : 'python -m pdd_cs login';
+  const cmdEl = $('guide-login-cmd');
+  if (cmdEl) cmdEl.textContent = loginCmd;
   loginEl.textContent = connected > 0 ? `已连接 ${connected}/${total} 个店铺` : '等待登录';
   loginEl.className = 'guide-status ' + (connected > 0 ? 'ok' : 'todo');
   runEl.textContent = started ? '运行中' : '未启动';
@@ -624,7 +629,8 @@ async function simulate(){
 
 $('shop-select').addEventListener('change', e => { selectedShop = e.target.value; load(); });
 $('copy-login-btn')?.addEventListener('click', async () => {
-  const cmd = 'python -m pdd_cs login' + (selectedShop === 'all' ? '' : ' --shop ' + selectedShop);
+  const targetShop = selectedShop !== 'all' ? selectedShop : (currentShops[0]?.shop_id || '');
+  const cmd = 'python -m pdd_cs login' + (currentShops.length > 1 && targetShop ? ' --shop ' + targetShop : '');
   try {
     await navigator.clipboard.writeText(cmd);
     $('copy-login-btn').textContent = '已复制：' + cmd;
