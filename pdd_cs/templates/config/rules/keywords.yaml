@@ -1,0 +1,116 @@
+# =============================================================================
+# 关键词自动回复
+# -----------------------------------------------------------------------------
+# 字段说明：
+#   keywords    关键词；用 | 分隔多个候选写法；[and] 表示需按顺序全部出现
+#   match       exact（完全相等）/ fuzzy（包含，默认）/ regex（正则）
+#   reply       回复内容；[or] 分隔多条候选随机选一条；[~] 随机字符/表情
+#   reply_type  text（默认）/ image
+#   priority    数字越小优先级越高（默认 100）
+#   enabled     是否启用（不写默认启用）
+#
+# 注意：所有回复都会经过平台规则合规检查（导流 / 承诺 / 敏感词 / 绝对化用语），
+#      命中会被改写或转人工，所以话术里不要写「今天一定发」「包退」这类承诺。
+# =============================================================================
+
+- id: greet
+  keywords: 你好|您好|在吗|在么|在不在|hi|hello|哈喽
+  match: fuzzy
+  priority: 10
+  reply: 您好呀～很高兴为您服务，请问有什么可以帮您？[or]在的～您请讲[~][or]您好，我在的，您说～[~]
+
+- id: ship_time
+  keywords: 什么时候发货|几天发货|多久发货|发货时间|什么时候能发|啥时候发
+  match: fuzzy
+  priority: 20
+  reply: 发货时效以商品详情页公示的为准哦～下单后可以在订单页随时查看物流进度。[or]亲，发货时间以商品详情页标注为准～下单后订单页会显示物流进度[~]
+
+- id: arrive_time
+  keywords: 几天到|多久到|什么时候到|几天能到|多久能到
+  match: fuzzy
+  priority: 20
+  reply: 到货时间以物流实际进度为准～我这边没法承诺具体到达时间，您可以在订单页随时查看物流更新哦。
+
+- id: courier
+  keywords: 什么快递|哪个快递|发什么物流|快递公司|什么物流
+  match: fuzzy
+  priority: 25
+  reply: 本店默认发【中通 / 圆通 / 韵达】，偏远地区可能转邮政，实际以仓库发运为准～[or]默认快递见商品详情页哦，实际发运以仓库安排为准[~]
+
+- id: logistics_track
+  keywords: 物流到哪|到哪了|快递单号|查快递|物流没更新|物流不更新
+  match: fuzzy
+  priority: 25
+  reply: 物流进度可以在订单页查看～如果长时间没有更新，我帮您转人工核实一下。
+
+- id: size
+  keywords: 尺码|多大码|穿什么码|选什么码|偏大|偏小
+  match: fuzzy
+  priority: 30
+  reply: 尺码建议对照商品详情页的尺码表选择哦～如果身高体重卡在两个码之间，我帮您转人工确认一下更稳妥。
+
+- id: material
+  keywords: 材质|面料|成分|什么做的|什么料子
+  match: fuzzy
+  priority: 30
+  reply: 材质成分以商品详情页的参数为准哦～[or]具体材质可以看商品详情页的参数说明[~]
+
+- id: shelf_life
+  keywords: 保质期|生产日期|过期|有效期
+  match: fuzzy
+  priority: 30
+  reply: 保质期见包装或商品详情页标注～生产日期随批次不同，以收到实物包装上的日期为准哦。
+
+- id: stock
+  keywords: 有货吗|库存|补货|还有货
+  match: fuzzy
+  priority: 30
+  reply: 库存以商品页面显示为准哦，页面显示可以拍下就是有货～[or]亲，商品页面能下单就说明有库存哦[~]
+
+- id: color_diff
+  keywords: 色差|颜色差|实物颜色|和图片一样吗
+  match: fuzzy
+  priority: 35
+  reply: 商品图片受拍摄光线和显示器影响，可能会有轻微色差，颜色以收到实物为准哦～
+
+- id: packaging
+  keywords: 包装|礼盒|送礼|贺卡
+  match: fuzzy
+  priority: 35
+  reply: 包装以商品详情页标注为准～需要礼盒、贺卡等特殊包装的话，我帮您转人工确认一下。
+
+- id: gift
+  keywords: 赠品|赠品呢|少发赠品
+  match: fuzzy
+  priority: 35
+  reply: 赠品以商品详情页标注为准～如果收到的赠品缺失，请拍一下外包装和商品，我帮您转人工核实。
+
+- id: remote_region
+  keywords: 偏远地区|新疆发货|西藏发货|内蒙古发货|海南发货
+  match: fuzzy
+  priority: 35
+  reply: 偏远地区的发货情况以商品详情页公示为准～下单前先把收货地址填好，页面会提示是否可达哦。
+
+- id: order_query
+  keywords: 我的订单|查订单|订单号|订单在哪
+  match: fuzzy
+  priority: 40
+  reply: 您可以在订单页面查看订单详情～需要我帮您核对的话，请提供订单号后四位哦。
+
+- id: thanks
+  keywords: 谢谢|感谢|多谢|辛苦
+  match: exact
+  priority: 60
+  reply: 不客气～还有其他问题随时找我[~][or]不用谢，能帮到您就好～[~]
+
+- id: bye
+  keywords: 再见|拜拜|没事了|好的谢谢
+  match: fuzzy
+  priority: 60
+  reply: 好的～祝您购物愉快，有任何问题随时联系[~][or]好嘞～后续有问题随时找我哦[~]
+
+- id: wait
+  keywords: 稍等|等一下|等会|稍后
+  match: fuzzy
+  priority: 70
+  reply: 好的，您慢慢看～我随时在的[~]

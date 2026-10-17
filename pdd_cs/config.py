@@ -37,9 +37,25 @@ import yaml
 #: 面板默认端口（刻意选一个不常见的高位端口，避免与常规服务冲突）
 DEFAULT_PANEL_PORT = 38617
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+def _detect_project_root() -> Path:
+    """定位项目根目录。
+
+    - 源码 / 仓库方式运行：包目录的上一级就是项目根（有 pyproject.toml + config/）；
+    - pip 安装方式运行：使用当前工作目录，用户在哪个目录执行 init/run 就在哪里生成配置。
+    """
+    package_root = Path(__file__).resolve().parent.parent
+    if (package_root / "pyproject.toml").is_file() and (
+        package_root / "config" / "config.example.yaml"
+    ).is_file():
+        return package_root
+    return Path.cwd()
+
+
+PROJECT_ROOT = _detect_project_root()
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
 EXAMPLE_CONFIG_PATH = PROJECT_ROOT / "config" / "config.example.yaml"
+#: 随包发布的内置模板（pip 安装模式下 init 用它生成配置/话术）
+TEMPLATE_CONFIG_DIR = Path(__file__).resolve().parent / "templates" / "config"
 
 
 # ---------------------------------------------------------------------------
@@ -905,4 +921,6 @@ __all__ = [
     "apply_env_overrides",
     "DEFAULT_CONFIG_PATH",
     "EXAMPLE_CONFIG_PATH",
+    "TEMPLATE_CONFIG_DIR",
+    "DEFAULTS",
 ]

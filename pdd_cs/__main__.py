@@ -29,9 +29,19 @@ import time
 import webbrowser
 from pathlib import Path
 
+import yaml
+
 from . import __version__
 from .alerts import EVENT_STARTUP, AlertNotifier
-from .config import EXAMPLE_CONFIG_PATH, PROJECT_ROOT, Config, ShopProfile, ensure_dirs
+from .config import (
+    DEFAULTS,
+    EXAMPLE_CONFIG_PATH,
+    PROJECT_ROOT,
+    TEMPLATE_CONFIG_DIR,
+    Config,
+    ShopProfile,
+    ensure_dirs,
+)
 from .engine.service import PDDAutoReplyService
 from .engine.qc import QCScanner
 from .pdd.api import PDDClient, PDDSessionExpired
@@ -127,15 +137,63 @@ def _shop_table(config: Config) -> str:
 # ---------------------------------------------------------------------------
 # init / login
 # ---------------------------------------------------------------------------
+def _scaffold_from_templates(config_dir: Path, *, overwrite: bool = False) -> None:
+    """pip 安装模式：把随包模板复制成用户目录下的 config/。"""
+    config_dir.mkdir(parents=True, exist_ok=True)
+    target = config_dir / "config.yaml"
+    example = TEMPLATE_CONFIG_DIR / "config.example.yaml"
+    if example.exists() and (overwrite or not target.exists()):
+        shutil.copyfile(example, target)
+
+    persona = TEMPLATE_CONFIG_DIR / "persona.md"
+    if persona.exists():
+        dest = config_dir / "persona.md"
+        if overwrite or not dest.exists():
+            shutil.copyfile(persona, dest)
+
+    for sub in ("knowledge", "rules"):
+        source = TEMPLATE_CONFIG_DIR / sub
+        if not source.is_dir():
+            continue
+        dest_dir = config_dir / sub
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for item in sorted(source.iterdir()):
+            if not item.is_file():
+                continue
+            dest = dest_dir / item.name
+            if overwrite or not dest.exists():
+                shutil.copyfile(item, dest)
+
+
 def cmd_init(args) -> int:
     print(BANNER)
     ensure_dirs(Config.load())
-    target = PROJECT_ROOT / "config" / "config.yaml"
+    config_dir = PROJECT_ROOT / "config"
+    target = config_dir / "config.yaml"
     if target.exists() and not args.force:
         print(f"配置已存在：{target}")
-    else:
+        # pip 安装模式下可能只缺规则/知识库：补齐缺失文件，但不覆盖用户已有内容
+        if TEMPLATE_CONFIG_DIR.exists() and not EXAMPLE_CONFIG_PATH.exists():
+            _scaffold_from_templates(config_dir, overwrite=False)
+    elif EXAMPLE_CONFIG_PATH.exists():
+        # 仓库 / 源码方式：直接复制带完整注释的示例配置
+        config_dir.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(EXAMPLE_CONFIG_PATH, target)
         print(f"✅ 已生成配置：{target}")
+    elif TEMPLATE_CONFIG_DIR.exists():
+        # pip 安装方式：从包内置模板生成配置、人设、知识库与规则
+        _scaffold_from_templates(config_dir, overwrite=args.force)
+        print(f"✅ pip 安装模式：已从内置模板生成配置与话术：{config_dir}")
+    else:
+        # 最后兜底：至少生成一份可解析的基础配置
+        config_dir.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            "# pdd-cs 基础配置（未找到内置模板，建议 git clone 仓库获取完整话术库）\n"
+            + yaml.safe_dump(DEFAULTS, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
+        print(f"✅ 已生成基础配置：{target}")
+        print("⚠️  未找到内置话术模板，建议从仓库获取完整 config/ 目录")
     (PROJECT_ROOT / "config" / "secrets").mkdir(parents=True, exist_ok=True)
     print("\n下一步：")
     print("  1. 编辑 config/config.yaml：店铺列表 shops、LLM Key、告警 Webhook")

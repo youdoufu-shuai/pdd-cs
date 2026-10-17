@@ -1,0 +1,96 @@
+# =============================================================================
+# 会话质检规则（QC）
+# -----------------------------------------------------------------------------
+# type 取值：
+#   outbound_check  客服发出的内容命中平台规则（承诺/导流/敏感词/隐私等）
+#   unanswered      客户最后一条消息没有回复
+#   slow_first_response 首响超过 sla.first_response_seconds
+#   duplicate_reply 连续两条回复高度相似
+#   transfer_failed 最近一次转人工失败
+#   negative_emotion 客户出现负面情绪词
+#   complaint_keyword 客户消息命中投诉/监管关键词
+#
+# severity: high / medium / low（面板按严重程度排序）
+# 注意：质检是“事后挑出来给人工复核”，不替代实时拦截。
+# =============================================================================
+
+- id: risky_promise
+  name: 客服乱承诺（发货/退款/赔付）
+  type: outbound_check
+  severity: high
+  note: 拼多多「负体验」高风险，需人工复核并培训
+
+- id: offsite_divert
+  name: 站外导流
+  type: outbound_check
+  severity: high
+  note: 微信/QQ/手机号/链接等
+
+- id: sensitive_word
+  name: 平台敏感词
+  type: outbound_check
+  severity: medium
+  note: 被平台拦截或违规的表述
+
+- id: privacy_leak
+  name: 隐私信息索取
+  type: outbound_check
+  severity: high
+  note: 身份证/银行卡/验证码等
+
+- id: absolute_claim
+  name: 绝对化用语
+  type: outbound_check
+  severity: low
+  note: 最/第一/100% 等广告法风险
+
+- id: rude_reply
+  name: 话术态度问题
+  type: outbound_check
+  severity: medium
+  note: 反问、爱买不买等
+
+- id: unanswered
+  name: 客户消息未回复
+  type: unanswered
+  severity: medium
+  note: 最后一条是客户消息
+
+- id: slow_first_response
+  name: 首响超时
+  type: slow_first_response
+  severity: medium
+  note: 超过首响红线
+
+- id: duplicate_reply
+  name: 重复话术
+  type: duplicate_reply
+  severity: low
+  note: 连续两条回复高度相似
+
+- id: transfer_failed
+  name: 转人工失败
+  type: transfer_failed
+  severity: high
+  note: 需要人工确认是否已接手
+
+- id: negative_emotion
+  name: 客户情绪升级
+  type: negative_emotion
+  severity: medium
+  note: 出现负面情绪词
+
+- id: complaint_keyword
+  name: 投诉/监管关键词
+  type: complaint_keyword
+  severity: high
+  keywords:
+    - 投诉
+    - 举报
+    - 12315
+    - 工商
+    - 差评
+    - 曝光
+    - 起诉
+    - 律师
+  note: 投诉、监管、舆情风险

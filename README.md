@@ -47,7 +47,7 @@
 | 客户黑名单 | 按 uid / 关键词静默指定客户（职业打假、恶意骚扰），不自动回复 |
 | 订单上下文 | 客户发来订单卡片后沉淀到会话，后续问答与面板都能看到 |
 | 本地面板 | 浅色商务风格，零前端依赖，`http://127.0.0.1:38617`；多店铺切换、搜索、会话详情、测试台 |
-| 可测试 | 自带拼多多 Mock（HTTP + WS），128 个自动化测试 + 57 项全功能验证，无需真实店铺即可全链路验证 |
+| 可测试 | 自带拼多多 Mock（HTTP + WS），133 个自动化测试 + 57 项全功能验证，无需真实店铺即可全链路验证 |
 
 ## 多店铺与日常运营功能
 
@@ -169,17 +169,25 @@ journalctl -u pdd-cs -f
 - 本机安装 Chrome（登录时用，程序会自己拉起一个独立浏览器窗口）
 
 ```bash
+# 方式 A（推荐）：使用仓库
+git clone https://github.com/youdoufu-shuai/pdd-cs.git
 cd pdd-cs
 pip install -r requirements.txt
+
+# 方式 B：pip 安装（不想 clone 仓库时）
+pip install .
+# 安装后可用 `pdd-cs` 命令（等价于 python -m pdd_cs）；
+# `pdd-cs init` 会从包内置模板生成完整配置、人设、知识库和话术规则
 ```
 
 ### 1. 初始化配置
 
 ```bash
-python -m pdd_cs init
+python -m pdd_cs init      # pip 安装模式则用：pdd-cs init
 ```
 
-生成 `config/config.yaml`。至少改这几处：
+生成 `config/config.yaml`（pip 安装模式会同时生成 `persona.md`、`knowledge/`、`rules/`）。
+至少改这几处：
 
 - `pdd.shop_hint`：店铺名（仅用于展示）
 - `llm.api_key`：大模型 Key；或设置环境变量 `PDD_CS_LLM_KEY`（不填也能跑，只是不会 AI 回复）
@@ -221,8 +229,9 @@ python -m pdd_cs run
 python scripts/demo.py
 ```
 
-会自动启动「Mock 拼多多 + 智能客服 + 面板」，模拟 6 个客户进线（咨询、退货、砍价、投诉、
-物流、违规话术），自动回复与转人工全链路都会真实跑一遍，面板地址 `http://127.0.0.1:38617`。
+会自动启动「2 个 Mock 拼多多店铺 + 智能客服 + 面板」，模拟 7 个客户进线（咨询、快递、砍价、
+退货、投诉、物流、违规话术），自动回复、转人工、质检、风控全链路都会真实跑一遍，
+面板地址 `http://127.0.0.1:38617`。
 
 ### 决策测试台（不发送消息）
 
@@ -237,7 +246,7 @@ python -m pdd_cs simulate "什么时候发货？" "我要退货" "能便宜点�
 项目自带两套验证，改完配置/话术/代码后建议各跑一遍：
 
 ```bash
-python -m pytest                 # 128 个自动化测试（单元 + 多店铺端到端 + CLI 子进程）
+python -m pytest                 # 133 个自动化测试（单元 + 多店铺端到端 + CLI 子进程）
 python scripts/verify_all.py     # 57 项全功能验证（真起 Mock 拼多多 + 多店铺 + 面板 + CLI + 掉线/心跳/鉴权/端口）
 ```
 
@@ -315,7 +324,7 @@ pdd-cs/
 │   └── __main__.py     # CLI：init/login/run/doctor/simulate/stats/export/lint/qc/alert-test/rules
 ├── config/             # 配置、人设、知识库、规则（可直接改，不用改代码）
 ├── mock/               # 拼多多 Mock 服务（HTTP + WS），用于演示和测试
-├── tests/              # 128 个自动化测试（含多店铺端到端与 CLI）
+├── tests/              # 133 个自动化测试（含多店铺端到端与 CLI）
 ├── docs/               # 平台规则、架构、合规矩阵、运营手册、部署指南、协议说明
 ├── deploy/             # systemd 服务文件、docker-compose
 ├── Dockerfile          # 生产镜像（含 strict 健康检查）

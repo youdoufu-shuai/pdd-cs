@@ -1,0 +1,271 @@
+# =============================================================================
+# 拼多多智能客服 · 主配置
+# -----------------------------------------------------------------------------
+# 复制本文件为 config/config.yaml 后修改。所有配置项均有默认值，可只改需要的部分。
+# 规则依据与生效日期见 docs/platform-rules.md。
+# =============================================================================
+
+app:
+  name: 拼多多智能客服
+  timezone: Asia/Shanghai
+  log_level: INFO          # DEBUG / INFO / WARNING
+  data_dir: data           # SQLite、日志、Chrome 用户目录
+
+# 面板端口：默认 38617（刻意选的高位少见端口，避免和 80/8080/8787 等冲突）。
+# 也可用环境变量覆盖（优先级：命令行 > 环境变量 > 配置文件）：
+#   PDD_CS_PORT=38617 PDD_CS_HOST=127.0.0.1 python -m pdd_cs run
+server:
+  host: 127.0.0.1          # 服务器上保持 127.0.0.1，用 SSH 隧道访问最安全
+  port: 38617              # 少见端口，避免与他人/系统服务冲突
+  auto_open_dashboard: false
+  # 只有 host 改成 0.0.0.0 / 内网 IP 时才必须设置，建议 32 位随机串：
+  #   python -c "import secrets;print(secrets.token_urlsafe(32))"
+  auth_token: ""           # 也可用环境变量 PDD_CS_AUTH_TOKEN
+
+# -----------------------------------------------------------------------------
+# 拼多多商家后台
+# -----------------------------------------------------------------------------
+pdd:
+  base_url: https://mms.pinduoduo.com
+  ws_url: wss://m-ws.pinduoduo.com/
+  ws_api_version: "202506091557"
+  cookie_file: config/secrets/cookies.json
+  shop_hint: ""            # 店铺名（仅用于展示；登录后会自动读取）
+  cs_uid: ""               # 指定接待客服 uid，留空使用当前登录账号
+  set_online: true         # 连接后自动把客服置为在线（否则收不到客户消息）
+  poll_conversations: true # 启动时同步最近会话昵称（失败自动降级）
+  request_timeout_seconds: 20
+  max_retries: 3
+
+# -----------------------------------------------------------------------------
+# 多店铺（重点）
+# -----------------------------------------------------------------------------
+# 不写 shops 时是单店铺模式（使用上面 pdd.cookie_file）。
+# 多店铺时每个店铺有自己的 Cookie 文件，可单独覆盖 behavior/compliance 等配置。
+#
+# shops:
+#   - id: shop-a                 # 店铺标识（字母/数字/-/_）
+#     name: A店（女装）
+#     cookie_file: config/secrets/shop-a.json
+#     enabled: true
+#     overrides:                 # 可选：该店铺的配置覆盖
+#       behavior:
+#         reply_delay_seconds: 3
+#       compliance:
+#         human_handoff:
+#           assign_cs_name: 小美
+#   - id: shop-b
+#     name: B店（百货）
+#     cookie_file: config/secrets/shop-b.json
+shops: []
+
+# -----------------------------------------------------------------------------
+# 大模型（OpenAI 兼容接口，可接 DeepSeek / 通义千问 / 豆包 / OpenAI）
+# API Key 建议用环境变量 PDD_CS_LLM_KEY；未配置时自动降级为关键词 + 默认回复
+# -----------------------------------------------------------------------------
+llm:
+  enabled: true
+  base_url: https://api.deepseek.com/v1
+  api_key: ""
+  api_key_env: PDD_CS_LLM_KEY
+  model: deepseek-chat
+  temperature: 0.6
+  max_tokens: 400
+  timeout_seconds: 30
+  max_history_messages: 12
+
+# -----------------------------------------------------------------------------
+# 接待行为
+# -----------------------------------------------------------------------------
+behavior:
+  reply_delay_seconds: 2.0      # 首次回复前等待（给人工接管留窗口）
+  reply_delay_jitter: 2.0       # 随机延迟上限
+  context_count: 10             # 传给 AI 的上下文条数
+  max_reply_chars: 180          # 单条消息最大字数（拼多多聊天窗口不宜过长）
+  default_reply: 您好，收到您的消息～客服正在为您核实，稍后回复您。
+  no_match: human               # 无可用回复时：human 转人工 / default 默认回复 / silent 不回复
+  human_takeover_minutes: 15    # 检测到人工客服回复后，暂停自动回复的分钟数
+  max_auto_replies_per_conversation: 12
+
+# -----------------------------------------------------------------------------
+# 平台规则合规（核心）
+# -----------------------------------------------------------------------------
+compliance:
+  disclosure:
+    enabled: true
+    # 首条自动回复披露智能客服身份：避免"假装人工"引发投诉，也符合人机协同的监管方向
+    first_message: 您好，我是本店智能客服助手～人工客服稍后为您服务。
+    every_message_suffix: ""
+    transfer_hint: 如需人工客服，请直接回复“人工”。
+    first_message_only_once: true
+
+  sla:
+    first_response_seconds: 180   # 首响红线：3 分钟（拼多多客服响应考核口径以规则中心为准）
+    warn_seconds: 120             # 面板/日志预警阈值
+    repeat_ask_threshold: 3       # 客户重复追问 N 次转人工
+
+  anti_duplicate:
+    enabled: true
+    min_unique_ratio: 0.86        # 与最近话术相似度超过该值视为重复
+    history_size: 6
+    max_attempts: 3
+    random_tokens: true           # 用 [~] 随机符让每次回复略有差异
+
+  risk:
+    session_reply_limit: 6        # 单会话窗口内最多自动回复条数
+    shop_reply_limit: 40          # 单店铺窗口内最多自动回复条数
+    window_seconds: 300
+    min_send_interval_seconds: 1.2
+
+  human_handoff:
+    enabled: true
+    no_reason_remark: 智能客服转人工
+    assign_cs_name: ""            # 指定人工客服名称；留空自动选第一个可分配客服
+    fallback_to_manual: true      # 转接失败时暂停自动回复，等人工处理
+    notify_message: 已为您转接人工客服，请稍等片刻～
+
+  # 命中即转人工（在关键词回复之前判断）
+  transfer_keywords:
+    - 人工
+    - 转人工
+    - 真人
+    - 客服人工
+    - 投诉
+    - 举报
+    - 12315
+    - 工商局
+    - 起诉
+    - 律师
+    - 曝光
+    - 媒体
+    - 差评
+    - 仅退款
+    - 退款
+    - 退货
+    - 赔偿
+    - 发票
+    - 开发票
+    - 过敏
+    - 受伤
+    - 质量问题
+    - 漏发
+    - 错发
+    - 假货
+
+  negative_emotion_keywords:
+    - 垃圾
+    - 骗子
+    - 恶心
+    - 气死
+    - 无语
+    - 什么破
+    - 退钱
+    - 骗人
+    - 投诉你
+    - 曝光你
+    - 不想要了
+    - 失望
+    - 太差
+    - 坑人
+
+  amount_handoff_threshold: 100   # 订单金额超过该值转人工
+
+# -----------------------------------------------------------------------------
+# 营业时间
+# -----------------------------------------------------------------------------
+business_hours:
+  enabled: false
+  start: "08:30"
+  end: "22:30"
+  off_hours_reply: 您好，现在是非工作时间，客服上线后会第一时间回复您。可先留言，感谢理解～
+  off_hours_ai: true
+
+# -----------------------------------------------------------------------------
+# 知识库
+# -----------------------------------------------------------------------------
+knowledge:
+  enabled: true
+  dir: config/knowledge
+  top_k: 3
+  min_score: 1.0
+  max_chars_per_snippet: 500
+
+# -----------------------------------------------------------------------------
+# 规则文件
+# -----------------------------------------------------------------------------
+rules:
+  keyword_file: config/rules/keywords.yaml
+  transfer_file: config/rules/transfer.yaml
+  replace_file: config/rules/replace.yaml
+  filter_file: config/rules/filters.yaml
+  compliance_file: config/rules/compliance.yaml
+  goods_file: config/rules/goods.yaml
+  blacklist_file: config/rules/blacklist.yaml
+  qc_file: config/rules/qc.yaml
+
+persona_file: config/persona.md
+
+# -----------------------------------------------------------------------------
+# 告警通知（登录过期 / 断线 / 转人工失败 / 客户超时未回）
+# 支持钉钉、飞书、企业微信、自定义 Webhook
+# -----------------------------------------------------------------------------
+alerts:
+  enabled: false
+  webhook_url: ""
+  format: generic          # generic | dingtalk | feishu | wecom
+  events:
+    - shop_offline        # 店铺掉线（超过 offline_after_seconds 仍连不上）
+    - shop_online         # 店铺恢复
+    - connection_error
+    - session_expired
+    - transfer
+    - transfer_failed
+    - sla_overdue
+    - send_failed
+  min_interval_seconds: 60  # 同一事件同一店铺的最小发送间隔（防刷屏）
+  timeout_seconds: 10
+  title_prefix: 拼多多智能客服
+  offline_after_seconds: 120     # 掉线超过 2 分钟开始告警
+  offline_repeat_seconds: 1800   # 一直没恢复的话，每 30 分钟提醒一次
+
+# -----------------------------------------------------------------------------
+# 进程存活心跳（死信开关，强烈建议配合服务器部署使用）
+# -----------------------------------------------------------------------------
+# 本进程整个挂掉 / 服务器宕机时，Webhook 是发不出去的。
+# 用外部监控（Healthchecks.io、Uptime Kuma、云厂商函数等）接收心跳：
+# 超过 N 分钟没收到心跳 → 由外部监控给你打电话/发消息。
+# 同时面板也提供了严格健康检查：GET /healthz?strict=1（掉线返回 503），
+# 可以直接让 Uptime Kuma / 阿里云云监控 / 腾讯云拨测来轮询。
+monitor:
+  heartbeat_url: ""              # 例如 https://hc-ping.com/xxxxxxxx
+  heartbeat_interval_seconds: 300
+  heartbeat_timeout_seconds: 10
+  heartbeat_method: POST         # POST（JSON 状态）或 GET（健康检查式 URL）
+
+# -----------------------------------------------------------------------------
+# 会话质检（事后抽检：乱承诺 / 导流 / 漏回 / 超时 / 重复 / 投诉）
+# -----------------------------------------------------------------------------
+qc:
+  enabled: true
+  days: 7
+  max_conversations: 300
+  min_messages: 2
+
+# -----------------------------------------------------------------------------
+# 运营洞察（按小时进线、转人工原因、命中话术 Top、知识缺口）
+# -----------------------------------------------------------------------------
+insights:
+  enabled: true
+  days: 7
+  top_n: 8
+
+# -----------------------------------------------------------------------------
+# 待处理队列（面板高亮 + 超时告警）
+# -----------------------------------------------------------------------------
+pending:
+  overdue_seconds: 120
+  max_items: 50
+
+dashboard:
+  enabled: true
+  refresh_seconds: 5

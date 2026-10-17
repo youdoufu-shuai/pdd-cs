@@ -1,0 +1,42 @@
+# =============================================================================
+# 入站过滤：命中后不自动回复（广告 / 刷单 / 代运营 / 招商等）
+# -----------------------------------------------------------------------------
+# condition_type: contains（包含）/ regex（正则）/ msg_type（消息类型）
+# 过滤掉的会话会在面板「风控日志 / 会话结果」里显示为 filtered，不会打扰正常客户。
+# =============================================================================
+
+- condition_type: contains
+  condition_value: 刷单
+  note: 刷单广告，不自动回复
+
+- condition_type: contains
+  condition_value: 好评返现
+  note: 诱导好评，不自动回复
+
+- condition_type: contains
+  condition_value: 补单
+  note: 刷单广告，不自动回复
+
+- condition_type: contains
+  condition_value: 代运营
+  note: 代运营招商广告，不自动回复
+
+- condition_type: contains
+  condition_value: 招商
+  note: 招商广告，不自动回复
+
+- condition_type: contains
+  condition_value: 带货
+  note: 带货/推广广告，不自动回复
+
+- condition_type: contains
+  condition_value: 兼职
+  note: 兼职/刷信誉广告，不自动回复
+
+- condition_type: contains
+  condition_value: 加群
+  note: 拉群广告，不自动回复
+
+- condition_type: regex
+  condition_value: ^(测试|test|111|123)$
+  note: 测试消息，不自动回复
