@@ -6,6 +6,10 @@
 
 ![运行面板](docs/dashboard.png)
 
+> **第一次用？完全不懂代码也能跑。** Windows 双击 `start.bat`，macOS/Linux 执行 `bash start.sh`，
+> 剩下的按提示走即可；也可以看 **[小白 3 分钟上手指南](docs/beginner.md)**。
+
+
 ## 它是什么
 
 `pdd-cs` 是一个**本机运行**的拼多多店铺客服助手：
@@ -46,8 +50,8 @@
 | 话术库 CSV | 关键词 / 转人工 / 替换词 与 Excel CSV 互转，按 id 增量导入 |
 | 客户黑名单 | 按 uid / 关键词静默指定客户（职业打假、恶意骚扰），不自动回复 |
 | 订单上下文 | 客户发来订单卡片后沉淀到会话，后续问答与面板都能看到 |
-| 本地面板 | 浅色商务风格，零前端依赖，`http://127.0.0.1:38617`；多店铺切换、搜索、会话详情、测试台 |
-| 可测试 | 自带拼多多 Mock（HTTP + WS），133 个自动化测试 + 57 项全功能验证，无需真实店铺即可全链路验证 |
+| 本地面板 | 商务多彩风格，零前端依赖，`http://127.0.0.1:38617`；**新手引导**、KPI 色带、多店铺切换、搜索、会话详情、测试台 |
+| 可测试 | 自带拼多多 Mock（HTTP + WS），139 个自动化测试 + 60 项全功能验证，无需真实店铺即可全链路验证 |
 
 ## 多店铺与日常运营功能
 
@@ -163,6 +167,13 @@ journalctl -u pdd-cs -f
 
 ## 快速开始
 
+### 小白一键启动（推荐）
+
+- **Windows**：双击 `start.bat`（自动建环境、装依赖、生成配置、启动面板）；
+- **macOS / Linux**：在项目目录执行 `bash start.sh`。
+
+看到「面板地址：http://127.0.0.1:38617」就说明起来了。详细图文步骤见 [小白上手指南](docs/beginner.md)。
+
 ### 0. 环境
 
 - Python 3.10+（Windows / macOS / Linux 均可）
@@ -183,7 +194,8 @@ pip install .
 ### 1. 初始化配置
 
 ```bash
-python -m pdd_cs init      # pip 安装模式则用：pdd-cs init
+python -m pdd_cs setup     # 推荐：交互式向导，一路回车即可
+# 或手动生成：python -m pdd_cs init
 ```
 
 生成 `config/config.yaml`（pip 安装模式会同时生成 `persona.md`、`knowledge/`、`rules/`）。
@@ -246,8 +258,8 @@ python -m pdd_cs simulate "什么时候发货？" "我要退货" "能便宜点�
 项目自带两套验证，改完配置/话术/代码后建议各跑一遍：
 
 ```bash
-python -m pytest                 # 133 个自动化测试（单元 + 多店铺端到端 + CLI 子进程）
-python scripts/verify_all.py     # 57 项全功能验证（真起 Mock 拼多多 + 多店铺 + 面板 + CLI + 掉线/心跳/鉴权/端口）
+python -m pytest                 # 139 个自动化测试（单元 + 多店铺端到端 + CLI 子进程）
+python scripts/verify_all.py     # 60 项全功能验证（真起 Mock 拼多多 + 多店铺 + 面板 + CLI + 新手引导/一键启动）
 ```
 
 `verify_all.py` 逐项打印 ✅/❌，覆盖：依赖、配置校验、规则匹配、决策链七种分支、
@@ -324,13 +336,15 @@ pdd-cs/
 │   └── __main__.py     # CLI：init/login/run/doctor/simulate/stats/export/lint/qc/alert-test/rules
 ├── config/             # 配置、人设、知识库、规则（可直接改，不用改代码）
 ├── mock/               # 拼多多 Mock 服务（HTTP + WS），用于演示和测试
-├── tests/              # 133 个自动化测试（含多店铺端到端与 CLI）
-├── docs/               # 平台规则、架构、合规矩阵、运营手册、部署指南、协议说明
+├── tests/              # 139 个自动化测试（含多店铺端到端与 CLI）
+├── docs/               # 平台规则、架构、合规矩阵、运营手册、部署指南、小白指南、协议说明
 ├── deploy/             # systemd 服务文件、docker-compose
 ├── Dockerfile          # 生产镜像（含 strict 健康检查）
+├── start.bat           # Windows 一键启动（小白双击即用）
+├── start.sh            # macOS / Linux 一键启动
 └── scripts/
     ├── demo.py         # 无需店铺的多店铺一键演示
-    └── verify_all.py   # 57 项全功能验证报告
+    └── verify_all.py   # 60 项全功能验证报告
 ```
 
 ## 数据与隐私
@@ -341,6 +355,10 @@ pdd-cs/
 - `python -m pdd_cs export` 可导出最近 N 天会话为 JSON，用于客诉复盘 / 申诉取证。
 
 ## 常见问题
+
+**Q：我完全不会编程，能用吗？**
+A：可以。Windows 双击 `start.bat`，macOS/Linux 执行 `bash start.sh`，按提示扫码登录即可；
+不会改配置就用 `python -m pdd_cs setup` 向导一路回车。详细步骤见 [小白上手指南](docs/beginner.md)。
 
 **Q：会不会被平台判定为外挂？**
 A：本项目使用你店铺自己的账号、走商家后台前端同样的接口，不爬取他人数据、不做批量注册。

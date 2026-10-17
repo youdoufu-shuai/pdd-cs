@@ -558,7 +558,7 @@ async def main(verbose: bool = False) -> int:
                 assert marker in page, f"页面缺少板块: {marker}"
             return "商务风格页面 6 个板块齐全"
 
-        await check("面板页面（商务风格）", _panel_page)
+        await check("面板页面（商务多彩风格 + 新手引导）", _panel_page)
 
         async def _panel_apis():
             status = _http_json(base + "api/status")
@@ -648,6 +648,49 @@ async def main(verbose: bool = False) -> int:
         return "自检流程完整"
 
     await check("CLI doctor", _cli_doctor)
+
+    async def _cli_welcome():
+        result = await asyncio.to_thread(_run_cli, [])
+        assert result.returncode == 0, result.stderr
+        assert "第一次使用" in result.stdout
+        assert "pdd_cs setup" in result.stdout
+        return "无参数时显示新手引导"
+
+    await check("CLI 新手欢迎页", _cli_welcome)
+
+    async def _cli_setup():
+        import yaml as _yaml
+
+        target = tmp / "cli-setup.yaml"
+        result = await asyncio.to_thread(
+            _run_cli,
+            ["setup", "--yes", "--config", str(target), "--port", "40123",
+             "--shops", "demo-a:A店"],
+        )
+        assert result.returncode == 0, result.stderr
+        data = _yaml.safe_load(target.read_text(encoding="utf-8"))
+        assert data["server"]["port"] == 40123
+        assert data["shops"][0]["id"] == "demo-a"
+        return "向导生成配置正常"
+
+    await check("CLI setup 新手向导", _cli_setup)
+
+    async def _launcher_check():
+        if os.name != "nt":
+            return "非 Windows，跳过 start.bat"
+        result = await asyncio.to_thread(
+            subprocess.run,
+            ["cmd", "/c", "start.bat", "--check"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            timeout=120,
+        )
+        output = (result.stdout + result.stderr).decode("utf-8", errors="replace")
+        assert result.returncode == 0, output
+        assert "自检通过" in output
+        return "start.bat 一键启动脚本自检通过"
+
+    await check("一键启动脚本 start.bat", _launcher_check)
 
     # ---------------------------------------------------------------
     # 12. 多店铺

@@ -107,6 +107,68 @@
     .kpis{grid-template-columns:repeat(2,1fr)}
     footer{padding:0 16px 24px}
   }
+
+  /* ================= 商务多彩主题（v1.3） ================= */
+  :root{
+    --c-blue:#2563eb; --c-blue-soft:#eff6ff;
+    --c-teal:#0d9488; --c-teal-soft:#f0fdfa;
+    --c-amber:#d97706; --c-amber-soft:#fffbeb;
+    --c-rose:#e11d48; --c-rose-soft:#fff1f2;
+    --c-violet:#7c3aed; --c-violet-soft:#f5f3ff;
+    --c-green:#059669; --c-green-soft:#ecfdf5;
+    --c-indigo:#4f46e5; --c-indigo-soft:#eef2ff;
+  }
+  body{
+    background:
+      radial-gradient(1100px 380px at 88% -8%, #e7efff 0%, rgba(231,239,255,0) 62%),
+      radial-gradient(900px 320px at 2% -12%, #e6fbf7 0%, rgba(230,251,247,0) 60%),
+      var(--bg);
+  }
+  .topbar{background:linear-gradient(120deg,#0b1f38 0%,#123157 46%,#1d4ed8 165%);border-bottom:none}
+  .topbar::after{content:"";display:block;height:4px;background:linear-gradient(90deg,#2563eb 0%,#0d9488 34%,#d97706 66%,#e11d48 100%)}
+  .mark{background:linear-gradient(135deg,#ffffff 0%,#dce9ff 100%)}
+  .section-head h2{position:relative;padding-left:12px}
+  .section-head h2::before{content:"";position:absolute;left:0;top:3px;bottom:3px;width:4px;border-radius:2px;background:linear-gradient(180deg,#2563eb,#0d9488)}
+  .kpi{position:relative;border-top:3px solid var(--accent,#2563eb);padding-top:14px}
+  .kpi .ico{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--accent-soft,#eff6ff);color:var(--accent,#2563eb);margin-bottom:9px}
+  .kpi .ico svg{width:16px;height:16px}
+  .kpi.kpi-blue{--accent:#2563eb;--accent-soft:#eff6ff}
+  .kpi.kpi-teal{--accent:#0d9488;--accent-soft:#f0fdfa}
+  .kpi.kpi-amber{--accent:#d97706;--accent-soft:#fffbeb}
+  .kpi.kpi-green{--accent:#059669;--accent-soft:#ecfdf5}
+  .kpi.kpi-violet{--accent:#7c3aed;--accent-soft:#f5f3ff}
+  .kpi.kpi-rose{--accent:#e11d48;--accent-soft:#fff1f2}
+  .kpi .value{color:var(--accent,#152238)}
+  .card[data-tone] .card-head h3::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--tone,#2563eb);margin-right:8px;vertical-align:1px}
+  .card[data-tone="blue"]{--tone:#2563eb}
+  .card[data-tone="teal"]{--tone:#0d9488}
+  .card[data-tone="amber"]{--tone:#d97706}
+  .card[data-tone="rose"]{--tone:#e11d48}
+  .card[data-tone="violet"]{--tone:#7c3aed}
+  .card[data-tone="green"]{--tone:#059669}
+  .card[data-tone="indigo"]{--tone:#4f46e5}
+  .card-head{background:linear-gradient(180deg,#f8fafc 0%,#ffffff 100%)}
+  .shop-pill{display:inline-block;font-size:11.5px;line-height:18px;padding:0 8px;border-radius:999px;border:1px solid;white-space:nowrap}
+  .guide-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:14px 16px 6px}
+  .guide-step{border:1px solid var(--line);border-left:3px solid var(--step,#2563eb);border-radius:8px;padding:11px 13px;background:#fff}
+  .guide-step .n{font-weight:600;font-size:12.5px;color:var(--step,#2563eb);letter-spacing:.3px}
+  .guide-step .desc{color:var(--muted);font-size:11.5px;margin:4px 0 8px;line-height:1.55}
+  .guide-step .cmd{display:block;font-family:ui-monospace,Consolas,monospace;font-size:11px;background:#f6f8fc;border:1px solid #e6ecf5;border-radius:4px;padding:4px 6px;color:#1f3a5f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .guide-status{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;margin-top:8px;background:#f1f5f9;color:var(--muted)}
+  .guide-status.ok{background:#ecfdf5;color:#047857}
+  .guide-status.todo{background:#fff7ed;color:#b45309}
+  .guide-actions{display:flex;gap:8px;padding:10px 16px 14px;flex-wrap:wrap;align-items:center}
+  .bar{background:linear-gradient(180deg,#60a5fa,#2563eb)}
+  .bar:nth-child(3n+2){background:linear-gradient(180deg,#5eead4,#0d9488)}
+  .bar:nth-child(3n+3){background:linear-gradient(180deg,#c4b5fd,#7c3aed)}
+  .rank .rd{width:7px;height:7px;border-radius:50%;background:var(--dot,#2563eb);display:inline-block;margin-right:7px;vertical-align:1px}
+  button{background:linear-gradient(135deg,#1e40af,#2563eb);border-color:#1e40af}
+  button:hover{background:linear-gradient(135deg,#1d4ed8,#3b82f6)}
+  button.ghost{background:#fff;color:var(--ink-2);border-color:var(--line-strong)}
+  button.ghost:hover{background:#f1f5f9}
+  .status .dot.on{box-shadow:0 0 0 3px rgba(52,211,153,.18)}
+  @media (max-width:900px){.guide-steps{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -138,19 +200,48 @@
   </div>
   <div class="kpis" id="kpis"></div>
 
-  <section class="card" id="shops-card" style="margin-bottom:16px;display:none">
+  <section class="card" id="guide-card" data-tone="blue" style="margin-bottom:16px">
+    <div class="card-head"><h3>新手引导 · 三步开始接待</h3><span class="meta" id="guide-meta">照着做即可，无需懂代码</span></div>
+    <div class="guide-steps">
+      <div class="guide-step" style="--step:#2563eb">
+        <div class="n">① 登录店铺</div>
+        <div class="desc">手机扫码登录拼多多商家后台，程序自动保存登录态。</div>
+        <code class="cmd">python -m pdd_cs login</code>
+        <span class="guide-status todo" id="guide-login">等待登录</span>
+      </div>
+      <div class="guide-step" style="--step:#0d9488">
+        <div class="n">② 检查配置</div>
+        <div class="desc">店铺、AI Key、告警都在 config/config.yaml；也可用向导重新生成。</div>
+        <code class="cmd">python -m pdd_cs setup</code>
+        <span class="guide-status ok" id="guide-config">已完成</span>
+      </div>
+      <div class="guide-step" style="--step:#d97706">
+        <div class="n">③ 开启接待</div>
+        <div class="desc">保持在线即可，面板实时显示会话、风控与质检。</div>
+        <code class="cmd">python -m pdd_cs run</code>
+        <span class="guide-status todo" id="guide-run">未启动</span>
+      </div>
+    </div>
+    <div class="guide-actions">
+      <button class="ghost" id="copy-login-btn">复制登录命令</button>
+      <button class="ghost" id="guide-tips-btn">查看使用提示</button>
+      <span class="meta">没有店铺也可以先跑演示：python scripts/demo.py</span>
+    </div>
+  </section>
+
+  <section class="card" id="shops-card" data-tone="teal" style="margin-bottom:16px;display:none">
     <div class="card-head"><h3>店铺状态</h3><span class="meta">多店铺统一接待</span></div>
     <div class="table" id="shops"></div>
   </section>
 
   <div class="grid">
     <div class="col-main">
-      <section class="card">
+      <section class="card" data-tone="amber">
         <div class="card-head"><h3>待处理队列</h3><span class="meta" id="pending-meta">超时未回 / 转接失败 / 人工接管</span></div>
         <div class="table" id="pending"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-tone="blue">
         <div class="card-head"><h3>会话监控</h3><span class="meta" id="conv-meta"></span></div>
         <div class="search-row">
           <input type="text" id="conv-search" placeholder="搜索客户昵称 / uid / 消息内容 / 订单号"/>
@@ -160,17 +251,17 @@
         <div class="table" id="conversations"></div>
       </section>
 
-      <section class="card" id="detail-card" style="display:none">
+      <section class="card" id="detail-card" data-tone="violet" style="display:none">
         <div class="card-head"><h3 id="detail-title">会话详情</h3><span class="meta" id="detail-meta"></span></div>
         <div class="msg-list" id="detail-messages"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-tone="rose">
         <div class="card-head"><h3>风控与合规事件</h3><span class="meta">发送前拦截 / 改写 / 转接情况</span></div>
         <div class="table" id="risk"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-tone="indigo">
         <div class="card-head"><h3>决策测试台</h3><span class="meta">试运行，不会发送消息</span></div>
         <div class="sim-row">
           <input type="text" id="sim-input" placeholder="输入客户一句话，例如：什么时候发货？"/>
@@ -181,12 +272,12 @@
     </div>
 
     <aside class="col-side">
-      <section class="card">
+      <section class="card" data-tone="blue">
         <div class="card-head"><h3>运行状态</h3><span class="meta" id="info-meta">本机服务</span></div>
         <dl class="dl" id="info"></dl>
       </section>
 
-      <section class="card">
+      <section class="card" data-tone="teal">
         <div class="card-head"><h3>运营洞察</h3><span class="meta">最近 7 天</span></div>
         <div class="mini-title">近 24 小时进线</div>
         <div class="bars" id="hourly"></div>
@@ -199,17 +290,17 @@
         <div id="gaps"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-tone="violet">
         <div class="card-head"><h3>会话质检</h3><span class="meta" id="qc-meta"></span></div>
         <div class="table" id="qc"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-tone="green">
         <div class="card-head"><h3>接待策略</h3><span class="meta">平台规则合规</span></div>
         <dl class="dl" id="policy"></dl>
       </section>
 
-      <section class="card">
+      <section class="card" data-tone="amber">
         <div class="card-head"><h3>使用提示</h3></div>
         <div class="note">
           <strong>多店铺聚合。</strong>右上角可切换店铺，全部店铺时 KPI 为聚合值。
@@ -222,7 +313,7 @@
 </main>
 
 <footer>
-  <span>pdd-cs v1.2</span>
+  <span>pdd-cs v1.3</span>
   <span class="sep">|</span>
   <span>接口：<a href="/api/status" target="_blank">status</a> · <a href="/api/pending" target="_blank">pending</a> · <a href="/api/insights" target="_blank">insights</a> · <a href="/api/qc" target="_blank">qc</a> · <a href="/api/risk" target="_blank">risk</a></span>
   <span class="sep">|</span>
@@ -256,6 +347,16 @@ function formatRiskDetail(detail){
 }
 function shopName(id){ const s = currentShops.find(x => x.shop_id === id); return s ? s.shop_name : id; }
 
+const SHOP_PALETTE = [
+  ['#2563eb','#eff6ff'], ['#0d9488','#f0fdfa'], ['#d97706','#fffbeb'],
+  ['#7c3aed','#f5f3ff'], ['#e11d48','#fff1f2'], ['#4f46e5','#eef2ff']
+];
+function shopBadge(id, text){
+  const idx = Math.max(0, currentShops.findIndex(x => x.shop_id === id));
+  const pair = SHOP_PALETTE[idx % SHOP_PALETTE.length];
+  return `<span class="shop-pill" style="color:${pair[0]};background:${pair[1]};border-color:${pair[0]}40">${esc(text || shopName(id))}</span>`;
+}
+
 function selectedStatus(status){
   if(selectedShop === 'all') return status;
   const shop = (status.shops || []).find(s => s.shop_id === selectedShop);
@@ -277,17 +378,42 @@ function renderShopSelect(status){
   selectedShop = box.value;
 }
 
+const KPI_ICONS = {
+  inbound:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V6a3 3 0 0 1 3-3h11a4 4 0 0 1 4 4z"/></svg>',
+  reply:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>',
+  transfer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1v6h-6"/><path d="M7 23v-6h6"/><path d="M17 7l-4-4"/><path d="M7 17l4 4"/></svg>',
+  sla:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  latency:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>',
+  pending:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5l3 2"/></svg>'
+};
+
 function renderKpis(s){
   const t = s.today || {}, sla = s.sla || {};
   const cards = [
-    {label:'今日进线', value:num(t.inbound_messages), foot:(t.conversations||0)+' 个会话'},
-    {label:'自动回复', value:num(t.auto_replies), foot:'今日发送总量'},
-    {label:'转人工', value:num(t.transfers), foot:(t.conversations ? pct((t.transfers||0)/(t.conversations||1)) : '—') + ' 转接率'},
-    {label:'首响达标率', value:pct(sla.within_sla_rate), foot:'红线 ' + num(sla.sla_threshold_seconds) + ' 秒'},
-    {label:'平均首响', value:(sla.avg_first_response_seconds==null?'—':num(sla.avg_first_response_seconds,1)+'s'), foot:'P90 ' + (sla.p90_first_response_seconds==null?'—':num(sla.p90_first_response_seconds,1)+'s')},
-    {label:'待处理', value:num(s.pending_count), foot:'超时 ' + num(sla.overdue_count||0) + ' · 风控 ' + num(t.risk_events)},
+    {tone:'blue', icon:KPI_ICONS.inbound, label:'今日进线', value:num(t.inbound_messages), foot:(t.conversations||0)+' 个会话'},
+    {tone:'green', icon:KPI_ICONS.reply, label:'自动回复', value:num(t.auto_replies), foot:'今日发送总量'},
+    {tone:'amber', icon:KPI_ICONS.transfer, label:'转人工', value:num(t.transfers), foot:(t.conversations ? pct((t.transfers||0)/(t.conversations||1)) : '—') + ' 转接率'},
+    {tone:'teal', icon:KPI_ICONS.sla, label:'首响达标率', value:pct(sla.within_sla_rate), foot:'红线 ' + num(sla.sla_threshold_seconds) + ' 秒'},
+    {tone:'violet', icon:KPI_ICONS.latency, label:'平均首响', value:(sla.avg_first_response_seconds==null?'—':num(sla.avg_first_response_seconds,1)+'s'), foot:'P90 ' + (sla.p90_first_response_seconds==null?'—':num(sla.p90_first_response_seconds,1)+'s')},
+    {tone:'rose', icon:KPI_ICONS.pending, label:'待处理', value:num(s.pending_count), foot:'超时 ' + num(sla.overdue_count||0) + ' · 风控 ' + num(t.risk_events)},
   ];
-  $('kpis').innerHTML = cards.map(c => `<div class="kpi"><div class="label">${esc(c.label)}</div><div class="value">${esc(c.value)}</div><div class="foot">${esc(c.foot)}</div></div>`).join('');
+  $('kpis').innerHTML = cards.map(c => `<div class="kpi kpi-${c.tone}"><div class="ico">${c.icon}</div><div class="label">${esc(c.label)}</div><div class="value">${esc(c.value)}</div><div class="foot">${esc(c.foot)}</div></div>`).join('');
+}
+
+function renderGuide(status){
+  const shops = status.shops || [];
+  const total = shops.length || 1;
+  const connected = shops.filter(x => x.channel && x.channel.connected).length;
+  const started = !!status.started;
+  const loginEl = $('guide-login'), runEl = $('guide-run');
+  loginEl.textContent = connected > 0 ? `已连接 ${connected}/${total} 个店铺` : '等待登录';
+  loginEl.className = 'guide-status ' + (connected > 0 ? 'ok' : 'todo');
+  runEl.textContent = started ? '运行中' : '未启动';
+  runEl.className = 'guide-status ' + (started ? 'ok' : 'todo');
+  const failed = Object.keys(status.startup_errors || {}).length;
+  $('guide-meta').textContent = failed
+    ? `${failed} 个店铺启动失败，看「运行状态」`
+    : (started ? '服务运行中，保持页面打开即可监控' : '照着做即可，无需懂代码');
 }
 
 function renderShops(shops){
@@ -323,7 +449,7 @@ function renderPending(list){
     const wait = p.waiting_seconds != null ? Math.round(p.waiting_seconds) + 's' : '—';
     const detail = (p.last_order && p.last_order.order_id) ? ('订单 ' + p.last_order.order_id) : (p.human_takeover_until ? '人工接管中' : '客户等待回复');
     return `<div class="tr" style="grid-template-columns:${cols}"><div class="cell-main"><div class="name">${esc(p.nickname || ('客户 ' + String(p.uid).slice(-6)))}</div><div class="sub">UID ${esc(String(p.uid).slice(-8))}</div></div>
-      <div>${esc(p.shop_name || shopName(p.shop_id))}</div>
+      <div>${shopBadge(p.shop_id, p.shop_name)}</div>
       <div><span class="tag ${tone}">${esc(label)}</span></div>
       <div class="num mono">${esc(wait)}</div>
       <div class="cell-main"><div class="sub">${esc(detail)}</div></div></div>`;
@@ -342,7 +468,7 @@ function renderConversations(list){
     const label = RESULT_LABEL[c.last_result] || c.last_result || '—';
     return `<div class="tr clickable" style="grid-template-columns:${cols}" data-shop="${esc(c.shop_id)}" data-uid="${esc(c.uid)}" data-name="${esc(c.nickname || '')}">
       <div class="cell-main"><div class="name">${esc(c.nickname || ('客户 ' + String(c.uid).slice(-6)))}</div><div class="sub">UID ${esc(String(c.uid).slice(-8))}</div></div>
-      ${selectedShop==='all'?`<div>${esc(shopName(c.shop_id))}</div>`:''}
+      ${selectedShop==='all'?`<div>${shopBadge(c.shop_id)}</div>`:''}
       <div><span class="tag ${RESULT_TONE(c.last_result)}">${esc(label)}</span></div>
       <div class="num mono">${num(c.inbound_count)}</div>
       <div class="num mono">${num(c.outbound_count)}</div>
@@ -378,7 +504,7 @@ function renderRisk(list){
   $('risk').innerHTML = head + list.slice(0,10).map(r => `
     <div class="tr" style="grid-template-columns:${riskCols}"><div class="mono">${esc(shortTime(r.created_at))}</div>
     <div><span class="tag neutral">${esc(RISK_LABEL[r.risk_type] || r.risk_type)}</span></div>
-    <div class="cell-main"><div class="sub" title="${esc(formatRiskDetail(r.detail))}">${selectedShop==='all'?esc(shopName(r.shop_id))+' · ':''}${esc(formatRiskDetail(r.detail))}</div></div></div>`).join('');
+    <div class="cell-main"><div class="sub" title="${esc(formatRiskDetail(r.detail))}">${selectedShop==='all'?shopBadge(r.shop_id)+' · ':''}${esc(formatRiskDetail(r.detail))}</div></div></div>`).join('');
 }
 
 function renderInfo(s){
@@ -443,7 +569,7 @@ function renderQC(data){
     return `<div class="tr" style="grid-template-columns:${qcCols}"><div><span class="tag ${level}">${label}</span></div>
       <div class="cell-main"><div class="name" style="font-weight:500">${esc(h.rule_name)}</div>
       <div class="sub" title="${esc(h.snippet || h.detail)}">${esc(h.snippet || h.detail)}</div></div>
-      <div class="num mono">${esc(shopName(h.shop_id))}</div></div>`;
+      <div class="num">${shopBadge(h.shop_id)}</div></div>`;
   }).join('');
 }
 
@@ -460,7 +586,7 @@ async function load(){
     dot.className = 'dot ' + (ch.connected ? 'on' : (ch.state === 'error' ? 'err' : 'warn'));
     $('conn-text').textContent = STATE_LABEL[ch.state] || ch.state || '未知';
     $('llm-pill').textContent = (s.llm && s.llm.enabled) ? ('AI · ' + s.llm.model) : 'AI 未启用';
-    renderKpis(s); renderShops(status.shops || []); renderInfo(s); renderPolicy(s);
+    renderKpis(s); renderShops(status.shops || []); renderInfo(s); renderPolicy(s); renderGuide(status);
 
     const shopQuery = selectedShop === 'all' ? '' : '&shop=' + encodeURIComponent(selectedShop);
     const q = $('conv-search').value.trim();
@@ -497,6 +623,19 @@ async function simulate(){
 }
 
 $('shop-select').addEventListener('change', e => { selectedShop = e.target.value; load(); });
+$('copy-login-btn')?.addEventListener('click', async () => {
+  const cmd = 'python -m pdd_cs login' + (selectedShop === 'all' ? '' : ' --shop ' + selectedShop);
+  try {
+    await navigator.clipboard.writeText(cmd);
+    $('copy-login-btn').textContent = '已复制：' + cmd;
+    setTimeout(() => { $('copy-login-btn').textContent = '复制登录命令'; }, 3000);
+  } catch (e) {
+    $('copy-login-btn').textContent = cmd;
+  }
+});
+$('guide-tips-btn')?.addEventListener('click', () => {
+  document.querySelector('.note')?.scrollIntoView({behavior:'smooth', block:'center'});
+});
 $('sim-btn').addEventListener('click', simulate);
 $('sim-input').addEventListener('keydown', e => { if(e.key === 'Enter') simulate(); });
 $('conv-search-btn').addEventListener('click', load);

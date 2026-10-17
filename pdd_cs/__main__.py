@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import copy
 import json
 import logging
 import logging.handlers
@@ -200,12 +201,171 @@ def cmd_init(args) -> int:
     print("  2. 编辑 config/persona.md、config/knowledge/*.md、config/rules/*.yaml")
     print("  3. 逐个店铺登录：python -m pdd_cs login --shop <店铺id>")
     print("  4. 运行：python -m pdd_cs run")
+    print("\n不会配置？运行交互式向导：python -m pdd_cs setup")
+    print("Windows 用户也可以双击 start.bat 一键启动")
     print("\n多店铺配置示例（config/config.yaml）：")
     print("  shops:")
     print("    - id: shop-a")
     print("      name: A店（女装）")
     print("      cookie_file: config/secrets/shop-a.json")
     return 0
+
+
+def _ask_text(prompt: str, default: str = "") -> str:
+    """交互式提问；非交互环境返回默认值，不阻塞。"""
+    suffix = f" [{default}]" if default else ""
+    try:
+        value = input(f"{prompt}{suffix}：").strip()
+    except (EOFError, KeyboardInterrupt):
+        return default
+    return value or default
+
+
+def _default_config_data() -> dict:
+    """读取示例配置（仓库/模板），作为 setup 的基础。"""
+    if EXAMPLE_CONFIG_PATH.exists():
+        source = EXAMPLE_CONFIG_PATH
+    elif (TEMPLATE_CONFIG_DIR / "config.example.yaml").exists():
+        source = TEMPLATE_CONFIG_DIR / "config.example.yaml"
+    else:
+        return copy.deepcopy(DEFAULTS)
+    loaded = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
+    return loaded if isinstance(loaded, dict) else copy.deepcopy(DEFAULTS)
+
+
+def cmd_setup(args) -> int:
+    """新手向导：交互式生成一份可运行的配置。"""
+    print(BANNER)
+    print("新手上手向导（一路回车即可使用默认值，Ctrl+C 可随时退出）")
+    print("=" * 68)
+
+    interactive = not getattr(args, "yes", False) and sys.stdin.isatty()
+    if getattr(args, "config", None):
+        target = Path(args.config)
+        if not target.is_absolute():
+            target = PROJECT_ROOT / target
+    else:
+        target = PROJECT_ROOT / "config" / "config.yaml"
+
+    if target.exists() and not getattr(args, "force", False):
+        print(f"配置已存在：{target}")
+        print("如需重新生成，请加 --force；或者直接编辑该文件。")
+        return 1
+
+    # ---- 店铺模式 ----
+    shops_spec = getattr(args, "shops", None)
+    if shops_spec is None and interactive:
+        mode = _ask_text("店铺模式：1=单店铺，2=多店铺", "1")
+        if mode.strip() in {"2", "多", "multi", "m"}:
+            shops_spec = _ask_text("店铺列表（格式 id:名称，多个用英文逗号分隔，例：shop-a:A店,shop-b:B店）")
+        else:
+            shops_spec = ""
+    shops_spec = (shops_spec or "").strip()
+
+    shops: list[dict[str, str]] = []
+    for part in shops_spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        shop_id, _, shop_name = part.partition(":")
+        shop_id = shop_id.strip()
+        if not shop_id:
+            continue
+        shops.append(
+            {
+                "id": shop_id,
+                "name": (shop_name or shop_id).strip(),
+                "cookie_file": f"config/secrets/{shop_id}.json",
+                "enabled": True,
+            }
+        )
+
+    # ---- 面板端口 ----
+    port = getattr(args, "port", None)
+    if port is None:
+        if interactive:
+            raw_port = _ask_text("面板端口", "38617")
+            try:
+                port = int(raw_port)
+            except ValueError:
+                print(f"端口 {raw_port!r} 不是数字，使用默认 38617")
+                port = 38617
+        else:
+            port = 38617
+    if not (1024 <= int(port) <= 65535):
+        print(f"⚠️ 端口 {port} 不在建议范围（1024-65535），已回落为 38617")
+        port = 38617
+
+    # ---- AI 大模型（可选，小白可以跳过） ----
+    llm_key = (getattr(args, "llm_key", None) or "").strip()
+    if not llm_key and interactive and not getattr(args, "no_llm", False):
+        answer = _ask_text("是否启用 AI 回复？输入 y 配置大模型 Key，直接回车跳过（仅关键词回复）", "")
+        if answer.lower() in {"y", "yes", "是", "1"}:
+            llm_key = _ask_text("大模型 API Key（DeepSeek/OpenAI 兼容）")
+    use_llm = bool(llm_key) and not getattr(args, "no_llm", False)
+
+    # ---- 生成配置 ----
+    data = _default_config_data()
+    data.setdefault("server", {})
+    data["server"]["port"] = int(port)
+    data["shops"] = shops
+    llm = data.setdefault("llm", {})
+    llm["enabled"] = use_llm
+    llm["api_key"] = llm_key if use_llm else ""
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    header = (
+        "# 由 `python -m pdd_cs setup` 生成（小白向导）\n"
+        "# 完整注释说明见同目录的 config.example.yaml\n"
+    )
+    target.write_text(header + yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    config_dir = target.parent
+    for sub in ("secrets", "knowledge", "rules"):
+        (config_dir / sub).mkdir(parents=True, exist_ok=True)
+    data_dir = Path(str(data.get("app", {}).get("data_dir", "data")))
+    if not data_dir.is_absolute():
+        data_dir = PROJECT_ROOT / data_dir
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    print("\n" + "=" * 68)
+    print(f"✅ 配置已生成：{target}")
+    if shops:
+        print(f"   店铺：{'、'.join(item['name'] for item in shops)}")
+        print("   登录命令：")
+        for item in shops:
+            print(f"     python -m pdd_cs login --shop {item['id']}")
+    else:
+        print("   店铺：默认单店铺")
+        print("   登录命令：python -m pdd_cs login")
+    print(f"   面板端口：{port}（浏览器打开 http://127.0.0.1:{port}）")
+    print(f"   AI 回复：{'已启用' if use_llm else '未启用（只用关键词/默认回复，后续可加）'}")
+    if use_llm:
+        print(f"   ⚠️ API Key 已写入 {target}（该文件不会被 git 提交）")
+    print("\n下一步（按顺序执行）：")
+    print("   1) python -m pdd_cs login        # 扫码登录店铺")
+    print("   2) python -m pdd_cs doctor       # 环境自检")
+    print("   3) python -m pdd_cs run          # 启动自动客服")
+    print("   不想敲命令？Windows 双击 start.bat，macOS/Linux 执行 bash start.sh")
+    print("=" * 68)
+    return 0
+
+
+def _print_welcome() -> None:
+    """不带子命令时的新手欢迎页。"""
+    print(BANNER)
+    print("第一次使用？按顺序执行下面 5 步即可：")
+    print()
+    print("  1) python -m pdd_cs init       # 生成默认配置")
+    print("  2) 编辑 config/config.yaml     # 填店铺、可选填大模型 Key")
+    print("  3) python -m pdd_cs login      # 扫码登录拼多多商家后台")
+    print("  4) python -m pdd_cs doctor     # 自检（有问题会告诉你）")
+    print("  5) python -m pdd_cs run        # 启动（面板 http://127.0.0.1:38617）")
+    print()
+    print("不会配置？运行交互式向导：python -m pdd_cs setup")
+    print("没有店铺想先看效果？运行：python scripts/demo.py")
+    print("全部命令：python -m pdd_cs --help")
+    print()
 
 
 def cmd_login(args) -> int:
@@ -483,6 +643,13 @@ def cmd_doctor(args) -> int:
 
     print("=" * 72)
     print("结论：" + ("全部通过，可以运行 python -m pdd_cs run" if ok else "存在需要处理的问题，见上方 ❌"))
+    print()
+    if any("Cookie" in problem for problem in config.validate()) or not config.shops:
+        print("👉 下一步：先运行 python -m pdd_cs login 扫码登录店铺")
+    elif not ok:
+        print("👉 下一步：按上面的 ❌ 逐项修复，或运行 python -m pdd_cs setup 重新生成配置")
+    else:
+        print("👉 下一步：python -m pdd_cs run 启动；面板 http://127.0.0.1:%d" % config.server.port)
     return 0 if ok else 1
 
 
@@ -694,6 +861,16 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--force", action="store_true", help="覆盖已有配置")
     init_parser.set_defaults(func=cmd_init)
 
+    setup_parser = subparsers.add_parser("setup", help="新手向导：交互式生成配置（推荐第一次用）")
+    setup_parser.add_argument("--yes", action="store_true", help="非交互，全部使用默认值")
+    setup_parser.add_argument("--force", action="store_true", help="覆盖已有配置")
+    setup_parser.add_argument("--config", help="写入的配置文件路径（默认 config/config.yaml）")
+    setup_parser.add_argument("--shops", help="店铺列表，如 shop-a:A店,shop-b:B店")
+    setup_parser.add_argument("--port", type=int, help="面板端口（默认 38617）")
+    setup_parser.add_argument("--llm-key", help="大模型 API Key（不填则只用关键词回复）")
+    setup_parser.add_argument("--no-llm", action="store_true", help="不启用 AI 回复")
+    setup_parser.set_defaults(func=cmd_setup)
+
     login_parser = subparsers.add_parser("login", help="扫码登录并保存 Cookie")
     login_parser.add_argument("--shop", help="店铺 id（多店铺时必填）")
     login_parser.add_argument("--config", help="配置文件路径")
@@ -769,7 +946,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):
-        parser.print_help()
+        _print_welcome()
         return 0
     try:
         return int(args.func(args))

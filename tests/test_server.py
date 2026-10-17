@@ -38,7 +38,12 @@ def test_page_is_business_style():
     assert "全部店铺" in PAGE_HTML
     assert "#f2f4f7" in PAGE_HTML  # 浅灰背景
     assert "--navy" in PAGE_HTML  # 深蓝品牌色
-    assert "linear-gradient" not in PAGE_HTML  # 商务风格不用花哨渐变
+    # v1.3 多彩商务主题：KPI 色带 / 彩色店铺徽标 / 新手引导
+    assert "kpi-blue" in PAGE_HTML and "kpi-teal" in PAGE_HTML
+    assert "data-tone=" in PAGE_HTML
+    assert "shop-pill" in PAGE_HTML
+    assert "新手引导" in PAGE_HTML and "三步开始接待" in PAGE_HTML
+    assert "linear-gradient" in PAGE_HTML  # 允许克制的渐变（顶栏/KPI 色带）
 
 
 def test_dashboard_endpoints(service):
