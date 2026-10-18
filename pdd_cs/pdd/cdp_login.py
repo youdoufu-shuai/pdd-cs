@@ -19,6 +19,7 @@ import os
 import shutil
 import socket
 import subprocess
+import threading
 import sys
 import time
 import urllib.request
@@ -566,6 +567,7 @@ def login_with_browser_headless(
     user_data_dir: Optional[Path] = None,
     poll_seconds: float = 2.0,
     on_qr: Optional[Callable[[bytes], None]] = None,
+    cancel_event: Optional[threading.Event] = None,
 ) -> dict[str, str]:
     """无桌面服务器扫码登录：headless Chrome 打开登录页，定时回报二维码截图。
 
@@ -577,6 +579,7 @@ def login_with_browser_headless(
         user_data_dir: Chrome 用户目录。
         poll_seconds: 轮询 Cookie 间隔。
         on_qr: 每次截到登录页图片时回调（PNG bytes），用于网页面板展示二维码。
+        cancel_event: 外部取消信号；用户关闭弹窗/重新生成时用于尽快停止 Chrome。
 
     Returns:
         保存的 Cookie 字典。
@@ -598,6 +601,8 @@ def login_with_browser_headless(
         deadline = started_at + timeout_seconds
         last_shot = 0.0
         while time.time() < deadline:
+            if cancel_event is not None and cancel_event.is_set():
+                raise LoginError("登录已取消")
             cookies = read_pdd_cookies(cdp)
             if _looks_logged_in(cookies):
                 problems = [p for p in validate_cookies(cookies) if "缺少部分" in p]
