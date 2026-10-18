@@ -1096,9 +1096,13 @@ function renderShopCards(payload) {
   }
   const noChromeNotice = cap.browser_login ? '' :
     '<div class="setup-banner" style="grid-column:1/-1;margin:0 0 4px">' +
-    '<div class="txt"><strong>当前电脑没有检测到 Chrome。</strong> 扫码登录不可用：' +
-    '可以点右侧「运行环境」一键下载 Chrome，也可以在本机登录后「导出登录态」到服务器「导入登录态」，' +
-    '或直接粘贴 Cookie。</div></div>';
+    '<div class="txt"><strong>扫码登录暂不可用。</strong> ' +
+    (cap.chrome_found
+      ? '已检测到 Chrome，但当前没有图形界面（DISPLAY），无法弹出扫码窗口；'
+      : '当前环境没有检测到 Chrome；') +
+    '推荐在本机登录后「导出登录态」→ 服务器「导入登录态」，也可以直接粘贴 Cookie' +
+    (cap.chrome_found ? '。' : '，或在右侧「运行环境」安装 Chrome（有桌面时）。') +
+    '</div></div>';
   box.innerHTML = noChromeNotice + shops.map(shop => {
     const runtime = shop.runtime || {};
     const channel = runtime.channel || {};
@@ -1195,11 +1199,17 @@ function renderChromeCard(cap) {
     installBtn.style.display = 'none';
   } else {
     state.textContent = '未检测到';
-    help.textContent = '当前电脑没有检测到 Chrome。可以一键下载（约 150MB，无需 root），' +
-      '或在本机登录后「导出登录态」到服务器「导入登录态」。';
-    installBtn.style.display = cap.install_supported ? '' : 'none';
-    installBtn.disabled = false;
-    installBtn.textContent = '一键下载 Chrome';
+    if (cap.display_available === false) {
+      help.textContent = '当前服务器没有图形界面（DISPLAY），即使安装 Chrome 也无法弹窗扫码。' +
+        '推荐在本机登录后「导出登录态」，再到服务器「导入登录态」；也可以直接粘贴 Cookie。';
+      installBtn.style.display = 'none';
+    } else {
+      help.textContent = '当前电脑没有检测到 Chrome。可以一键下载（约 150MB，无需 root），' +
+        '或在本机登录后「导出登录态」到服务器「导入登录态」。';
+      installBtn.style.display = cap.install_supported ? '' : 'none';
+      installBtn.disabled = false;
+      installBtn.textContent = '一键下载 Chrome';
+    }
   }
   if (cap.browser_login && progress) progress.style.display = 'none';
 }
