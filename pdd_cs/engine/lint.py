@@ -96,7 +96,17 @@ def _is_guardrail_line(text: str) -> bool:
 def _check_text(
     guard: ComplianceGuard, text: str, source: str, issues: list[LintIssue]
 ) -> None:
-    result = guard.check_outbound(text)
+    import re
+
+    from .compliance import _mask_pdd_product_links
+
+    # 商品目录里的 ID/地址/价格/库存是结构化资料，不当作对外话术检查
+    if re.match(r"^[-*•]\s*(商品\s*ID|商品地址|价格|库存)\s*[:：]", text or ""):
+        return
+    # 商品目录里的 ID 和平台内商品地址不是手机号/站外链接，检查前先遮蔽
+    scan_text = re.sub(r"商品\s*ID\s*[:：]\s*\d+", "商品 ID", text, flags=re.I)
+    scan_text, _ = _mask_pdd_product_links(scan_text)
+    result = guard.check_outbound(scan_text)
     for violation in result.violations:
         level = LEVEL_ERROR if violation.severity in {"block", "rewrite"} else LEVEL_WARN
         # 绝对化用语属于提醒级别，不阻断上线
