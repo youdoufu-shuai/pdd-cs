@@ -305,6 +305,18 @@ class AIReplyGenerator:
         if notice in text:
             return text
         limit = max(0, int(self.config.behavior.max_reply_chars))
+        # 商品链接必须完整保留，否则会破坏商品卡片识别；说明放在链接前
+        link_match = re.search(
+            r"https?://(?:(?:mobile\.)?yangkeduo\.com|(?:mobile\.)?pinduoduo\.com)/"
+            r"goods(?:\.html|2\.html)?\?goods_id=\d+",
+            text,
+        )
+        if link_match:
+            before = text[: link_match.start()].rstrip()
+            link = text[link_match.start():].strip()
+            room = limit - len(link) - len(notice) - 2 if limit else len(before)
+            before = truncate(before, max(0, room)) if room > 0 else ""
+            return f"{before}\n{notice}\n{link}".strip()
         if limit and len(text) + len(notice) + 1 > limit:
             room = max(0, limit - len(notice) - 1)
             text = truncate(text, room) if room else ""
