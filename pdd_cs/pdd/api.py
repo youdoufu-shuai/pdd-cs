@@ -510,16 +510,48 @@ class PDDClient:
     def _parse_conversation(raw: Any) -> dict[str, Any]:
         if not isinstance(raw, dict):
             return {}
-        uid = raw.get("uid") or raw.get("user_id") or raw.get("from_uid") or raw.get("customer_uid")
-        nickname = raw.get("nickname") or raw.get("user_name") or raw.get("userName") or ""
+        # PDD 新接口结构：from/to 角色 + user_info 买家资料
+        from_info = raw.get("from") if isinstance(raw.get("from"), dict) else {}
+        to_info = raw.get("to") if isinstance(raw.get("to"), dict) else {}
+        user_info = raw.get("user_info") if isinstance(raw.get("user_info"), dict) else {}
+        from_uid = str(from_info.get("uid") or "")
+        to_uid = str(to_info.get("uid") or "")
+        # 客服发的消息 from.role=mall_cs，买家在 to；买家发的消息反过来
+        if str(from_info.get("role") or "") == "mall_cs":
+            uid = to_uid
+        elif str(to_info.get("role") or "") == "mall_cs":
+            uid = from_uid
+        else:
+            uid = (
+                raw.get("uid")
+                or raw.get("user_id")
+                or raw.get("from_uid")
+                or raw.get("customer_uid")
+                or user_info.get("uid")
+                or ""
+            )
+        nickname = (
+            raw.get("nickname")
+            or raw.get("user_name")
+            or raw.get("userName")
+            or user_info.get("nickname")
+            or from_info.get("nickname")
+            or to_info.get("nickname")
+            or ""
+        )
         last = raw.get("last_message") or raw.get("lastMessage") or {}
         content = last.get("content") if isinstance(last, dict) else last
+        if not content:
+            content = raw.get("content") or ""
         return {
             "uid": str(uid) if uid is not None else "",
             "nickname": str(nickname),
             "last_message": str(content or ""),
-            "unreply": raw.get("unreply") or raw.get("unread") or 0,
-            "time": raw.get("time") or raw.get("update_time") or raw.get("timestamp"),
+            "unreply": raw.get("unreply") or raw.get("unread") or raw.get("unread_count") or 0,
+            "time": raw.get("time") or raw.get("update_time") or raw.get("timestamp") or raw.get("ts"),
+            "last_from_role": str(from_info.get("role") or ""),
+            "is_read": raw.get("is_read"),
+            "last_unreply_time": raw.get("last_unreply_time") or 0,
         }
 
     def get_chat_history(self, recipient_uid: Any, start_msg_id: Any = None, size: int = 50) -> list[dict[str, Any]]:

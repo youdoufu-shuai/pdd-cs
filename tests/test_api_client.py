@@ -52,6 +52,24 @@ def test_api_against_mock():
     _run(scenario())
 
 
+def test_parse_conversation_new_pdd_shape():
+    raw = {
+        "content": "好的",
+        "from": {"role": "mall_cs", "uid": "903048883", "csid": "主账号"},
+        "to": {"role": "user", "uid": "2962817084276"},
+        "user_info": {"uid": 2962817084276, "nickname": "p*****r"},
+        "is_read": 1,
+        "ts": "1792328143",
+        "last_unreply_time": 0,
+    }
+    parsed = PDDClient._parse_conversation(raw)
+    assert parsed["uid"] == "2962817084276"
+    assert parsed["nickname"] == "p*****r"
+    assert parsed["last_message"] == "好的"
+    assert parsed["last_from_role"] == "mall_cs"
+    assert parsed["time"] == "1792328143"
+
+
 def test_empty_text_rejected():
     client = PDDClient(
         {"PASS_ID": "mock"},
