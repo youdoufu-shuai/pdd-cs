@@ -21,7 +21,7 @@ import urllib.request
 from typing import Any, Iterable, Optional
 
 from ..config import Config
-from ..utils import truncate
+from ..utils import in_business_hours, now_beijing, truncate
 from .knowledge import KnowledgeBase, KnowledgeSnippet
 
 logger = logging.getLogger("pdd_cs.ai")
@@ -235,7 +235,8 @@ class AIReplyGenerator:
             logger.warning("AI 回复失败: %s", exc)
             return None
         cleaned = self._sanitize(content)
-        return self._ensure_product_link(cleaned, question=question, history=recent)
+        cleaned = self._ensure_product_link(cleaned, question=question, history=recent)
+        return self._append_human_hours_notice(cleaned)
 
     # ------------------------------------------------------------------
     def _build_system_prompt(
@@ -265,6 +266,19 @@ class AIReplyGenerator:
             parts.append("【知识库（只使用与问题直接相关的内容，不要逐字照抄）】\n" + self._format_snippets(snippets))
         else:
             parts.append("【知识库】本次没有检索到直接相关的资料；不确定的信息不要编造，必要时引导人工。")
+        human = self.config.human_hours
+        if human.enabled:
+            active = self._human_hours_active()
+            parts.append(
+                f"【人工客服在线时间】{human.start}-次日{human.end if human.end < human.start else human.end}；"
+                f"当前{'人工在线' if active else '非人工在线时段'}。"
+            )
+            if not active:
+                parts.append(
+                    "【非人工在线说明】客户要求人工、售后、投诉时，必须先说明："
+                    + human.notice
+                    + " 不要把“正在转人工”说成马上有人接待。"
+                )
         if handoff_hint:
             parts.append("【本次情况】客户这条消息涉及售后/投诉/情绪/安全等敏感场景，回复中请说明“正在为您转接人工客服”，不要代替人工做承诺或决定。")
         parts.append(
@@ -272,6 +286,29 @@ class AIReplyGenerator:
             f"当前时间：见系统时间；回复不超过 {self.config.behavior.max_reply_chars} 字。"
         )
         return "\n\n".join(parts)
+
+    def _human_hours_active(self) -> bool:
+        human = self.config.human_hours
+        if not human.enabled:
+            return False
+        return in_business_hours(now_beijing(), human.start, human.end)
+
+    def _append_human_hours_notice(self, content: str) -> str:
+        """非人工在线时段，在 AI 回复末尾补一句明确说明。"""
+        human = self.config.human_hours
+        if not human.enabled or self._human_hours_active() or not human.notice:
+            return content
+        notice = human.notice.strip()
+        text = (content or "").strip()
+        if not text:
+            return notice
+        if notice in text:
+            return text
+        limit = max(0, int(self.config.behavior.max_reply_chars))
+        if limit and len(text) + len(notice) + 1 > limit:
+            room = max(0, limit - len(notice) - 1)
+            text = truncate(text, room) if room else ""
+        return f"{text}\n{notice}".strip()
 
     def _format_snippets(self, snippets: list[KnowledgeSnippet]) -> str:
         return "\n\n".join(

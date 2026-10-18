@@ -42,7 +42,7 @@ from ..pdd.auth import CookieError, CookieStore, cookie_age_hours
 from ..pdd.channel import ConnState, PDDChannel
 from ..pdd.message import ChatEvent, CTX_ORDER_INFO, CTX_SYSTEM, CTX_WITHDRAW
 from ..store import Store
-from ..utils import iso, jitter, now_beijing, safe_float
+from ..utils import in_business_hours, iso, jitter, now_beijing, safe_float
 from .ai import AIReplyGenerator
 from .compliance import ComplianceGuard
 from .decision import Decision, DecisionEngine, RuntimeContext
@@ -631,10 +631,24 @@ class ShopWorker:
     # ------------------------------------------------------------------
     # 转人工
     # ------------------------------------------------------------------
+    def _human_hours_active(self) -> bool:
+        human = self.config.human_hours
+        if not human.enabled:
+            return False
+        return in_business_hours(now_beijing(), human.start, human.end)
+
     async def _do_transfer(self, uid: str, decision: Decision, *, question: str = "") -> None:
         reason = decision.reason or "转人工"
-        logger.info("[%s] 转人工 uid=%s 原因=%s", self.shop_id, uid, reason)
-        notify = self.config.compliance.human_handoff.notify_message
+        human_available = self._human_hours_active()
+        logger.info(
+            "[%s] 转人工 uid=%s 原因=%s 人工在线=%s",
+            self.shop_id, uid, reason, human_available,
+        )
+        notify = (
+            self.config.human_hours.notice
+            if (not human_available and self.config.human_hours.enabled)
+            else self.config.compliance.human_handoff.notify_message
+        )
         if notify:
             checked = self.guard.enforce(notify, max_chars=self.config.behavior.max_reply_chars)
             notify = checked.text if not checked.blocked else "已为您转接人工客服，请稍等片刻～"
@@ -654,6 +668,19 @@ class ShopWorker:
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[%s] 转人工提示发送失败: %s", self.shop_id, exc)
+
+        if not human_available and self.config.human_hours.enabled:
+            # 非人工在线时段：不把会话移动到无人值守的人工账号，
+            # 但保留转人工事件告警，人工上线后可优先跟进。
+            self.store.mark_result(uid, RESULT_TRANSFER, shop_id=self.shop_id)
+            await self._notify(
+                EVENT_TRANSFER,
+                "非人工时段需要人工",
+                f"店铺：{self.shop_display_name}\n客户：{uid}\n原因：{reason}\n"
+                f"人工在线时间：{self.config.human_hours.start}-次日{self.config.human_hours.end}",
+            )
+            logger.info("[%s] 非人工时段，已记录转人工提醒，暂不移动会话", self.shop_id)
+            return
 
         moved = False
         error = ""

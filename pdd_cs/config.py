@@ -383,6 +383,14 @@ class BusinessHoursConfig:
 
 
 @dataclass
+class HumanHoursConfig:
+    enabled: bool
+    start: str
+    end: str
+    notice: str
+
+
+@dataclass
 class KnowledgeConfig:
     enabled: bool
     dir: Path
@@ -600,6 +608,25 @@ class Config:
             parse_hhmm(self.business_hours.start)
             parse_hhmm(self.business_hours.end)
 
+        human_hours = data.get("human_hours", {})
+        self.human_hours = HumanHoursConfig(
+            enabled=_as_bool(human_hours.get("enabled"), False),
+            start=str(human_hours.get("start", "23:00")),
+            end=str(human_hours.get("end", "08:00")),
+            notice=str(
+                human_hours.get(
+                    "notice",
+                    "人工客服在线时间为 23:00-次日 08:00，当前由智能客服为您服务；"
+                    "售后/投诉我会先记录，人工上线后优先处理。",
+                )
+            ),
+        )
+        if self.human_hours.enabled:
+            from .utils import parse_hhmm
+
+            parse_hhmm(self.human_hours.start)
+            parse_hhmm(self.human_hours.end)
+
         knowledge = data.get("knowledge", {})
         self.knowledge = KnowledgeConfig(
             enabled=_as_bool(knowledge.get("enabled"), True),
@@ -753,6 +780,7 @@ class Config:
         base["llm"] = asdict(self.llm)
         base["behavior"] = asdict(self.behavior)
         base["business_hours"] = asdict(self.business_hours)
+        base["human_hours"] = asdict(self.human_hours)
         base["compliance"] = asdict(self.compliance)
         base["knowledge"] = asdict(self.knowledge)
         base["server"] = asdict(self.server)
