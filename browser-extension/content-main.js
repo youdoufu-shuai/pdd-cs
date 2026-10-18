@@ -3,6 +3,8 @@
  * anti_content 是发商品卡片所需的签名，页面每次请求都会重新生成。
  */
 (function () {
+  if (window.__PDD_CS_ANTI_PATCHED__) return;
+  window.__PDD_CS_ANTI_PATCHED__ = true;
   const MARK = "pdd-cs-anti-content";
 
   function publish(body) {

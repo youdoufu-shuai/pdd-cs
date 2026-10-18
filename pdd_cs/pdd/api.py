@@ -422,17 +422,16 @@ class PDDClient:
         return self._check_send_result(payload, kind="图片")
 
     def send_goods_card(self, recipient_uid: Any, goods_id: Any, biz_type: int = 2) -> dict[str, Any]:
-        """发送商品卡片（依赖 Cookie 中的 anti-content 签名，失败请降级为文本）。"""
+        """发送商品卡片；有 anti_content 时附带，没有也可以尝试（平台实测不强制）。"""
         anti_content = self.cookies.get("anti_content") or self.cookies.get("anti-content") or ""
-        if not anti_content:
-            raise PDDSendRejected("缺少 anti_content 签名，无法发送商品卡片（已降级为文本回复）")
         self._wait_send_slot()
         data = {"uid": recipient_uid, "goods_id": goods_id, "biz_type": biz_type}
         headers = {
-            "anti-content": anti_content,
             "Origin": self.base_url,
             "Referer": f"{self.base_url}/chat-merchant/index.html",
         }
+        if anti_content:
+            headers["anti-content"] = anti_content
         payload = self.request("POST", PDD_GOODS_CARD_PATH, json_data=data, headers=headers)
         return self._check_send_result(payload, kind="商品卡片")
 
