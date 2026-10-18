@@ -548,7 +548,7 @@ async def _run_service(config: Config, args) -> int:
     if dashboard:
         print(f"监控面板：{dashboard.url}")
         if token:
-            print("访问令牌：已启用（地址后加 ?token=<server.auth_token>，首次访问后会记住）")
+            print("访问令牌：已启用（首次打开面板会显示安全登录页，输入令牌后记住）")
         if config.server.host not in {"127.0.0.1", "localhost", "::1", "[::1]"}:
             print(f"⚠️  面板绑定在 {config.server.host}，请确认已设置访问令牌与防火墙白名单")
         if config.server.auto_open_dashboard or getattr(args, "open", False):
