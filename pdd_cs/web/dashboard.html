@@ -515,10 +515,12 @@
           <div class="help-list" id="login-method-help">
             <b>方式一：扫码登录（推荐）</b><br/>
             有桌面的电脑会弹出 Chrome 窗口扫码；服务器没有桌面时，点「服务器扫码登录」会把二维码显示在页面里。<br/><br/>
-            <b>方式二：粘贴 Cookie</b><br/>
-            在已登录拼多多商家后台的浏览器按 F12 → Network → 任意请求 → 复制请求头里的 Cookie 整行，粘贴进来。<br/><br/>
+            <b>方式二：粘贴 Cookie / cURL</b><br/>
+            在已登录拼多多商家后台的浏览器按 F12 → Network → 任意请求 → 复制请求头里的 Cookie 整行；也可以右键请求 → Copy as cURL，整段粘贴进来。<br/><br/>
             <b>登录态过期怎么办？</b><br/>
-            面板提示掉线或登录过期时，重新扫码登录即可，不需要重开程序。
+            面板提示掉线或登录过期时，重新扫码登录即可，不需要重开程序。<br/><br/>
+            <b>提示店铺不匹配？</b><br/>
+            说明这份登录态属于另一个拼多多店铺，系统会拒绝保存；请确认浏览器右上角店铺后再复制。
           </div>
         </section>
         <section class="card" data-tone="amber">
@@ -778,7 +780,7 @@
       </div>
       <div id="login-cookie-panel" style="display:none">
         <p>在已登录拼多多商家后台的浏览器按 F12 → Network → 任意请求 → 复制请求头里的 Cookie 整行，粘贴到下面：</p>
-        <textarea id="login-cookie-text" rows="6" placeholder="PASS_ID=...; MSA=...; anti_content=..."></textarea>
+        <textarea id="login-cookie-text" rows="6" placeholder="支持粘贴 Cookie 整行，或 DevTools 的 Copy as cURL 整段内容"></textarea>
         <div class="btn-row" style="margin-top:12px">
           <button id="save-cookie-btn">保存 Cookie 并登录</button>
         </div>

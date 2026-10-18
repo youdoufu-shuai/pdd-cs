@@ -36,18 +36,43 @@ class CookieError(ValueError):
     """Cookie 解析或校验失败。"""
 
 
+def extract_cookie_header(text: str) -> str:
+    """从 cURL / 浏览器请求头文本中提取 Cookie 值。
+
+    支持 ``-H 'Cookie: a=b; c=d'``、``--header "cookie: ..."`` 以及
+    浏览器 Network 面板复制的 ``Cookie: a=b; c=d`` 单行。
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return raw
+    # cURL / 浏览器请求头中直接找 Cookie: 后面那一行；同时兼容 -b / --cookie 参数
+    match = re.search(r"(?is)\bcookie:\s*([^'\"\r\n]+)", raw)
+    if match:
+        candidate = match.group(1).strip()
+        if "=" in candidate:
+            return candidate
+    match = re.search(r"(?is)(?:-b|--cookie)\s+['\"]?([^'\"\r\n]+)", raw)
+    if match:
+        candidate = match.group(1).strip()
+        if "=" in candidate:
+            return candidate
+    return raw
+
+
 def parse_cookie_text(text: str) -> dict[str, str]:
     """解析多种格式的 Cookie 文本为字典。
 
     支持：
         - JSON：``{"PASS_ID": "...", "MSA": "..."}``
         - 请求头：``PASS_ID=xxx; MSA=yyy``
+        - 请求头行：``Cookie: PASS_ID=xxx; MSA=yyy``
+        - cURL：``curl ... -H 'Cookie: PASS_ID=xxx; MSA=yyy'``
         - Netscape：每行 ``domain \\t flag \\t path \\t secure \\t expiry \\t name \\t value``
     """
     if not text or not text.strip():
         raise CookieError("Cookie 为空")
 
-    raw = text.strip()
+    raw = extract_cookie_header(text).strip()
 
     # 1) JSON 字典
     if raw.startswith("{"):

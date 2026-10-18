@@ -1001,9 +1001,6 @@ class LoginManager:
         fatal = [item for item in problems if "未找到登录态" in item]
         if fatal:
             raise SettingsError("；".join(fatal))
-        store = CookieStore(profile.cookie_file)
-        store.save_text(cookie_text)
-
         result: dict[str, Any] = {
             "ok": True,
             "cookies": len(cookies),
@@ -1028,9 +1025,23 @@ class LoginManager:
                 profile.cookie_file.unlink()
             except OSError:
                 pass
-            raise SettingsError(f"Cookie 校验失败：{exc}") from exc
+            raise SettingsError(f"Cookie 登录态已失效：{exc}") from exc
         except Exception as exc:  # noqa: BLE001 - 网络受限时保留 Cookie，让用户稍后重试
             result["warnings"] = problems + [f"登录态暂时无法校验（网络/风控原因）：{exc}"]
+            CookieStore(profile.cookie_file).save_text(cookie_text)
+            return result
+
+        actual_shop = str(result["shop_name"] or "").strip()
+        expected_shop = str(profile.name or "").strip()
+        # 默认店铺/店铺 ID 这类展示名不做强校验；用户自定义的真实店名必须与登录态一致
+        strict_expected = expected_shop and expected_shop not in {profile.id, "默认店铺", "店铺"}
+        if actual_shop and strict_expected and actual_shop.casefold() != expected_shop.casefold():
+            raise SettingsError(
+                f"登录态属于「{actual_shop}」，不是当前店铺「{expected_shop}」。"
+                f"请把 {expected_shop} 的浏览器登录态复制过来，或先修正店铺名称后再保存。"
+            )
+
+        CookieStore(profile.cookie_file).save_text(cookie_text)
         return result
 
     # -- 登录态导出 / 导入（本机登录 → 服务器免 Chrome） ----------------

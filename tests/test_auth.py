@@ -31,6 +31,25 @@ def test_parse_json_format():
     assert cookies["SUB_SYS_ID"] == "123"
 
 
+def test_parse_curl_cookie_header():
+    text = (
+        "curl 'https://mms.pinduoduo.com/janus/api/userinfo' \\\n"
+        "  -H 'accept: application/json' \\\n"
+        "  -H 'cookie: PASS_ID=abc; MSA=def; anti_content=xyz' \\\n"
+        "  --data-raw '{}'"
+    )
+    cookies = parse_cookie_text(text)
+    assert cookies["PASS_ID"] == "abc"
+    assert cookies["MSA"] == "def"
+    assert cookies["anti_content"] == "xyz"
+
+
+def test_parse_cookie_header_line():
+    cookies = parse_cookie_text("Cookie: PASS_ID=abc; MSA=def; anti_content=xyz")
+    assert cookies["PASS_ID"] == "abc"
+    assert cookies["MSA"] == "def"
+
+
 def test_parse_netscape_format():
     text = (
         "# Netscape HTTP Cookie File\n"

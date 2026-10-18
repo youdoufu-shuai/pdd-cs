@@ -8,6 +8,7 @@ import shutil
 import urllib.request
 from pathlib import Path
 
+import pytest
 import yaml
 
 from pdd_cs import web_admin
@@ -50,6 +51,8 @@ def _temp_config(tmp_path: Path, *, shops_empty: bool = True) -> Config:
     for generated in ("product-catalog.md", "after-sales-playbook.md"):
         (tmp_path / "knowledge" / generated).unlink(missing_ok=True)
     (tmp_path / "data").mkdir(exist_ok=True)
+    # 测试店铺 Cookie 路径按项目根解析，清理其他测试可能遗留的文件
+    (PROJECT_ROOT / "config" / "secrets" / "shop-a.json").unlink(missing_ok=True)
     return Config.load(path)
 
 
@@ -118,7 +121,7 @@ def test_shop_crud(tmp_path):
     shops = web_admin.shop_snapshots(config)
     assert len(shops) == 1 and shops[0]["id"] == "default"
 
-    web_admin.add_shop(config, "shop-a", "A店")
+    web_admin.add_shop(config, "shop-a", "测试店铺")
     config = Config.load(config.source)
     shops = web_admin.shop_snapshots(config)
     assert [item["id"] for item in shops] == ["shop-a"]
@@ -169,7 +172,7 @@ class _FakeExpiredClient(_FakeClient):
 
 def test_cookie_login_success(tmp_path, monkeypatch):
     config = _temp_config(tmp_path)
-    web_admin.add_shop(config, "shop-a", "A店")
+    web_admin.add_shop(config, "shop-a", "测试店铺")
     config = Config.load(config.source)
     monkeypatch.setattr(web_admin, "PDDClient", _FakeClient)
 
@@ -179,17 +182,23 @@ def test_cookie_login_success(tmp_path, monkeypatch):
     assert cookie_path.exists()
 
 
+def test_cookie_login_rejects_wrong_shop(tmp_path, monkeypatch):
+    config = _temp_config(tmp_path)
+    web_admin.add_shop(config, "shop-a", "另一个店铺")
+    config = Config.load(config.source)
+    monkeypatch.setattr(web_admin, "PDDClient", _FakeClient)
+    with pytest.raises(web_admin.SettingsError, match="登录态属于"):
+        web_admin.LoginManager(config).cookie_login("shop-a", MOCK_COOKIE)
+    assert not Path(config.shop_profile("shop-a").cookie_file).exists()
+
+
 def test_cookie_login_invalid_session_removes_cookie(tmp_path, monkeypatch):
     config = _temp_config(tmp_path)
-    web_admin.add_shop(config, "shop-a", "A店")
+    web_admin.add_shop(config, "shop-a", "测试店铺")
     config = Config.load(config.source)
     monkeypatch.setattr(web_admin, "PDDClient", _FakeExpiredClient)
-    try:
+    with pytest.raises(web_admin.SettingsError, match="登录态已失效"):
         web_admin.LoginManager(config).cookie_login("shop-a", MOCK_COOKIE)
-    except web_admin.SettingsError as exc:
-        assert "Cookie 校验失败" in str(exc)
-    else:  # pragma: no cover
-        raise AssertionError("无效登录态应报错")
     assert not Path(config.shop_profile("shop-a").cookie_file).exists()
 
 
@@ -197,7 +206,7 @@ def test_qr_login_session(tmp_path, monkeypatch):
     import time
 
     config = _temp_config(tmp_path)
-    web_admin.add_shop(config, "shop-a", "A店")
+    web_admin.add_shop(config, "shop-a", "测试店铺")
     config = Config.load(config.source)
     monkeypatch.setattr(web_admin, "find_chrome", lambda: "/usr/bin/google-chrome")
     monkeypatch.setattr(web_admin, "chrome_version", lambda path: "Google Chrome 155.0.0.0")
@@ -234,7 +243,7 @@ def test_qr_login_reuse_and_cancel(tmp_path, monkeypatch):
     import time
 
     config = _temp_config(tmp_path)
-    web_admin.add_shop(config, "shop-a", "A店")
+    web_admin.add_shop(config, "shop-a", "测试店铺")
     config = Config.load(config.source)
     monkeypatch.setattr(web_admin, "find_chrome", lambda: "/usr/bin/google-chrome")
     monkeypatch.setattr(web_admin, "chrome_version", lambda path: "Google Chrome 155.0.0.0")
@@ -290,7 +299,7 @@ def test_browser_login_requires_chrome(tmp_path, monkeypatch):
 
 def test_login_export_import_bundle(tmp_path, monkeypatch):
     config = _temp_config(tmp_path)
-    web_admin.add_shop(config, "shop-a", "A店")
+    web_admin.add_shop(config, "shop-a", "测试店铺")
     config = Config.load(config.source)
     monkeypatch.setattr(web_admin, "PDDClient", _FakeClient)
     manager = web_admin.LoginManager(config)
@@ -499,7 +508,7 @@ async def _http_scenario(tmp_path, monkeypatch):
 
         # 新增店铺
         status, result = await asyncio.to_thread(
-            _post, base + "api/shops/add", {"id": "shop-a", "name": "A店"}
+            _post, base + "api/shops/add", {"id": "shop-a", "name": "测试店铺"}
         )
         assert status == 200, result
         assert any(shop["id"] == "shop-a" for shop in result["shops"])
@@ -507,11 +516,11 @@ async def _http_scenario(tmp_path, monkeypatch):
         # 更新店铺
         status, result = await asyncio.to_thread(
             _post, base + "api/shops/update",
-            {"shop_id": "shop-a", "name": "A店（女装）", "enabled": False},
+            {"shop_id": "shop-a", "name": "测试店铺", "enabled": False},
         )
         assert status == 200, result
         shop = next(item for item in result["shops"] if item["id"] == "shop-a")
-        assert shop["name"] == "A店（女装）" and shop["enabled"] is False
+        assert shop["name"] == "测试店铺" and shop["enabled"] is False
 
         # 网页 Cookie 登录 -> 导出登录码 -> 退出 -> 导入登录码
         status, result = await asyncio.to_thread(
