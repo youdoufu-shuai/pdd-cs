@@ -34,6 +34,7 @@ class KeywordRule:
     reply: str
     match: str = "fuzzy"
     reply_type: str = REPLY_TEXT
+    followup: str = ""
     priority: int = 100
     enabled: bool = True
     note: str = ""
@@ -226,7 +227,8 @@ def _load_keywords(path: Path) -> list[KeywordRule]:
                 patterns=patterns,
                 reply=reply,
                 match=str(item.get("match", "fuzzy")),
-                reply_type=str(item.get("reply_type", REPLY_TEXT)),
+                reply_type=str(item.get("reply_type", REPLY_TEXT)).upper(),
+                followup=str(item.get("followup") or ""),
                 priority=int(item.get("priority", 100)),
                 enabled=bool(item.get("enabled", True)),
                 note=str(item.get("note", "")),
@@ -339,7 +341,7 @@ def _load_goods(path: Path) -> list[GoodsRule]:
             GoodsRule(
                 goods_id=str(goods_id),
                 reply=reply,
-                reply_type=str(item.get("reply_type", REPLY_TEXT)),
+                reply_type=str(item.get("reply_type", REPLY_TEXT)).upper(),
                 enabled=bool(item.get("enabled", True)),
             )
         )

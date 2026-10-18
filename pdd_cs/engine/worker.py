@@ -338,6 +338,16 @@ class ShopWorker:
         if not content:
             return True
         recent = self.store.get_messages(uid, limit=8, shop_id=self.shop_id)
+        # 商品卡片的回显可能是一条商品链接，而不是文本本身；
+        # 如果它对应最近刚发出的商品卡片，不能误判为“人工客服回复”。
+        goods_id = self._extract_goods_id(content)
+        if goods_id:
+            for msg in recent:
+                if msg.get("direction") != "out":
+                    continue
+                stored = str(msg.get("content") or "")
+                if "商品卡片" in stored and goods_id in stored:
+                    return True
         now = now_beijing()
         for msg in reversed(recent):
             if msg.get("direction") != "out":
@@ -479,6 +489,14 @@ class ShopWorker:
         try:
             if decision.reply_type == "IMAGE":
                 await asyncio.to_thread(self.api.send_image, uid, decision.content)
+                if decision.followup:
+                    followup = self.guard.enforce(
+                        decision.followup, max_chars=self.config.behavior.max_reply_chars
+                    )
+                    followup_text = followup.text if not followup.blocked else ""
+                    if followup_text:
+                        await asyncio.to_thread(self.api.send_text, uid, followup_text)
+                        content = f"{decision.content}\n{followup_text}"
             else:
                 if goods_id:
                     try:

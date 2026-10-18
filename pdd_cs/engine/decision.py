@@ -91,6 +91,7 @@ class Decision:
     risk: Optional[dict[str, Any]] = None
     violations: list[str] = field(default_factory=list)
     rule_id: str = ""
+    followup: str = ""
 
     @property
     def is_transfer(self) -> bool:
@@ -107,6 +108,7 @@ class Decision:
             "handoff": str(self.handoff) if self.handoff else None,
             "violations": self.violations,
             "rule_id": self.rule_id,
+            "followup": self.followup,
         }
 
 
@@ -239,6 +241,17 @@ class DecisionEngine:
                 handoff=signal,
             )
 
+        # 4.1) 自定义转人工关键词（config/rules/transfer.yaml）
+        transfer_rule = self.rules.match_transfer(text)
+        if transfer_rule:
+            return Decision(
+                action=ACTION_TRANSFER,
+                reply_type=REPLY_TRANSFER,
+                log_result=RESULT_TRANSFER,
+                reason=transfer_rule.reason,
+                handoff=HandoffSignal(transfer_rule.reason, "keyword", 5),
+            )
+
         # 5) 非营业时间
         hours = self.config.business_hours
         if hours.enabled and not in_business_hours(now, hours.start, hours.end):
@@ -272,6 +285,7 @@ class DecisionEngine:
                 reason=f"命中关键词规则 {keyword_rule.id}",
                 ctx=ctx,
                 rule_id=keyword_rule.id,
+                followup=keyword_rule.followup,
             )
             if decision:
                 return decision
@@ -341,6 +355,7 @@ class DecisionEngine:
         reason: str,
         ctx: RuntimeContext,
         rule_id: str = "",
+        followup: str = "",
     ) -> Optional[Decision]:
         if not raw_text:
             return None
@@ -353,6 +368,7 @@ class DecisionEngine:
                 should_reply=True,
                 reason=reason,
                 rule_id=rule_id,
+                followup=followup,
             )
 
         enforced: OutboundResult = self.guard.enforce(

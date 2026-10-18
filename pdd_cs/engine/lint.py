@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from ..config import Config
+from ..constants import REPLY_IMAGE
 from ..utils import split_variants
 from .compliance import ComplianceGuard
 
@@ -138,6 +139,12 @@ def lint_rules(config: Config, guard: ComplianceGuard) -> LintReport:
     issues: list[LintIssue] = []
     checked = 0
     for rule in rules.keywords:
+        if rule.reply_type == REPLY_IMAGE:
+            # 图片地址不是对外话术，检查图片说明/后续文字即可
+            for text in _iter_reply_texts(rule.followup):
+                checked += 1
+                _check_text(guard, text, f"keywords.yaml#{rule.id}", issues)
+            continue
         for text in _iter_reply_texts(rule.reply):
             checked += 1
             _check_text(guard, text, f"keywords.yaml#{rule.id}", issues)

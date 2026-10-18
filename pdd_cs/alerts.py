@@ -15,11 +15,14 @@ from __future__ import annotations
 
 import json
 import logging
+import smtplib
+import ssl
 import threading
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from email.message import EmailMessage
 from typing import Any, Optional
 
 from .config import AlertsConfig, MonitorConfig
@@ -89,7 +92,18 @@ class AlertNotifier:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.config.enabled and self.config.webhook_url)
+        if not self.config.enabled:
+            return False
+        has_webhook = bool(self.config.webhook_url)
+        has_email = bool(
+            self.config.email_enabled
+            and self.config.email_smtp_host
+            and self.config.email_username
+            and self.config.email_password
+            and self.config.email_to
+        )
+        has_sms = bool(self.config.sms_webhook_url and self.config.sms_phone)
+        return has_webhook or has_email or has_sms
 
     def should_send(self, event: str) -> bool:
         return self.enabled and event in self.config.events
@@ -126,19 +140,45 @@ class AlertNotifier:
             shop_name=shop_name,
             level=level or EVENT_LEVELS.get(event, "info"),
         )
-        try:
-            body = self._build_payload(payload)
-            self._post(body)
+        sent_any = False
+        errors: list[str] = []
+        body = self._build_payload(payload)
+        content = self._message_text(payload)
+        if self.config.webhook_url:
+            try:
+                self._post(body)
+                sent_any = True
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"webhook: {exc}")
+        if (
+            self.config.email_enabled
+            and self.config.email_smtp_host
+            and self.config.email_username
+            and self.config.email_password
+            and self.config.email_to
+        ):
+            try:
+                self._send_email(body.get("title") or title, content)
+                sent_any = True
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"email: {exc}")
+        if self.config.sms_webhook_url and self.config.sms_phone:
+            try:
+                self._send_sms(content)
+                sent_any = True
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"sms: {exc}")
+        if sent_any:
             with self._lock:
                 self.sent_count += 1
             logger.info("已发送告警通知 [%s] %s", event, title)
             return True
-        except Exception as exc:  # noqa: BLE001 - 告警失败不能影响客服主流程
-            with self._lock:
-                self.failed_count += 1
-                self.last_error = str(exc)
-            logger.warning("发送告警失败（已忽略）: %s", exc)
-            return False
+        error_text = "；".join(errors) or "没有可用的通知通道"
+        with self._lock:
+            self.failed_count += 1
+            self.last_error = error_text
+        logger.warning("发送告警失败（已忽略）: %s", error_text)
+        return False
 
     # ------------------------------------------------------------------
     def _build_payload(self, event: AlertEvent) -> dict[str, Any]:
@@ -170,6 +210,49 @@ class AlertNotifier:
             "shop_name": event.shop_name,
             "at": iso(now_beijing()),
         }
+
+    def _message_text(self, event: AlertEvent) -> str:
+        prefix = self.config.title_prefix or "拼多多智能客服"
+        shop = f"[{event.shop_name or event.shop_id}]" if (event.shop_id or event.shop_name) else ""
+        label = event.title or EVENT_LABELS.get(event.event, event.event)
+        lines = [f"【{prefix}】{shop}{label}", f"时间：{iso(now_beijing())}"]
+        if event.text:
+            lines.append(event.text)
+        return "\n".join(lines)
+
+    def _send_email(self, subject: str, content: str) -> None:
+        message = EmailMessage()
+        message["Subject"] = subject
+        message["From"] = self.config.email_from or self.config.email_username
+        message["To"] = ", ".join(self.config.email_to or [])
+        message.set_content(content)
+        port = int(self.config.email_smtp_port or 465)
+        if port == 465:
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(
+                self.config.email_smtp_host, port, timeout=self.config.timeout_seconds, context=context
+            ) as smtp:
+                smtp.login(self.config.email_username, self.config.email_password)
+                smtp.send_message(message)
+        else:
+            with smtplib.SMTP(
+                self.config.email_smtp_host, port, timeout=self.config.timeout_seconds
+            ) as smtp:
+                smtp.starttls(context=ssl.create_default_context())
+                smtp.login(self.config.email_username, self.config.email_password)
+                smtp.send_message(message)
+
+    def _send_sms(self, content: str) -> None:
+        payload = {"phone": self.config.sms_phone, "text": content}
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            self.config.sms_webhook_url,
+            data=data,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=self.config.timeout_seconds) as resp:
+            resp.read()
 
     def _post(self, payload: dict[str, Any]) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")

@@ -420,6 +420,15 @@ class AlertsConfig:
     title_prefix: str
     offline_after_seconds: int
     offline_repeat_seconds: int
+    email_enabled: bool = False
+    email_smtp_host: str = ""
+    email_smtp_port: int = 465
+    email_username: str = ""
+    email_password: str = ""
+    email_from: str = ""
+    email_to: list[str] | None = None
+    sms_webhook_url: str = ""
+    sms_phone: str = ""
 
 
 @dataclass
@@ -630,6 +639,18 @@ class Config:
             title_prefix=str(alerts.get("title_prefix", "拼多多智能客服")),
             offline_after_seconds=max(30, _as_int(alerts.get("offline_after_seconds"), 120)),
             offline_repeat_seconds=max(300, _as_int(alerts.get("offline_repeat_seconds"), 1800)),
+            email_enabled=_as_bool(alerts.get("email_enabled"), False),
+            email_smtp_host=str(alerts.get("email_smtp_host", "")),
+            email_smtp_port=_as_int(alerts.get("email_smtp_port"), 465),
+            email_username=str(alerts.get("email_username", "")),
+            email_password=os.getenv(
+                str(alerts.get("email_password_env") or "PDD_CS_EMAIL_PASSWORD"), ""
+            )
+            or str(alerts.get("email_password", "")),
+            email_from=str(alerts.get("email_from", "")),
+            email_to=[str(x) for x in (alerts.get("email_to") or [])],
+            sms_webhook_url=str(alerts.get("sms_webhook_url", "")),
+            sms_phone=str(alerts.get("sms_phone", "")),
         )
 
         monitor = data.get("monitor", {})
