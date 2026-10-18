@@ -46,6 +46,9 @@ def _temp_config(tmp_path: Path, *, shops_empty: bool = True) -> Config:
             shutil.copyfile(source, tmp_path / "rules" / f"{name}.yaml")
     shutil.copyfile(PROJECT_ROOT / "config" / "persona.md", tmp_path / "persona.md")
     shutil.copytree(PROJECT_ROOT / "config" / "knowledge", tmp_path / "knowledge", dirs_exist_ok=True)
+    # 模板文件可能是线上/本地已生成的；测试里清掉，确保「一键生成」从空开始
+    for generated in ("product-catalog.md", "after-sales-playbook.md"):
+        (tmp_path / "knowledge" / generated).unlink(missing_ok=True)
     (tmp_path / "data").mkdir(exist_ok=True)
     return Config.load(path)
 
