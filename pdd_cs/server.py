@@ -204,9 +204,26 @@ class DashboardServer:
                 self.send_header("Cache-Control", "no-store")
                 for name, value in headers or []:
                     self.send_header(name, value)
+                origin = (self.headers.get("Origin") or "").strip()
+                if origin.startswith("chrome-extension://"):
+                    self.send_header("Access-Control-Allow-Origin", origin)
+                    self.send_header("Vary", "Origin")
+                    self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Auth-Token")
+                    self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+
+            def do_OPTIONS(self) -> None:  # noqa: N802
+                origin = (self.headers.get("Origin") or "").strip()
+                self.send_response(204)
+                if origin.startswith("chrome-extension://"):
+                    self.send_header("Access-Control-Allow-Origin", origin)
+                    self.send_header("Vary", "Origin")
+                    self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Auth-Token")
+                    self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
 
             def _send_html(self, html: str, status: int = 200, headers: list | None = None) -> None:
                 body = html.encode("utf-8")
@@ -359,9 +376,12 @@ class DashboardServer:
 
             def _post_origin_ok(self) -> bool:
                 # 反向代理的访问凭据也是浏览器的隐式权限，必须阻止跨站 POST。
+                origin = self.headers.get("Origin")
+                # 浏览器扩展登录同步：仍要求 X-Auth-Token，只允许扩展来源。
+                if origin and origin.strip().startswith("chrome-extension://"):
+                    return True
                 if (self.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site":
                     return False
-                origin = self.headers.get("Origin")
                 if origin is None:
                     return True  # 非浏览器 JSON 客户端不发送 Origin。
                 scheme = (self.headers.get("X-Forwarded-Proto") or "http").strip().lower()
