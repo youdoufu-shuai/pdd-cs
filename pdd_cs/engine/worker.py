@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import timedelta
 from typing import Any, Optional
 
@@ -435,6 +436,20 @@ class ShopWorker:
             return
         self.store.mark_result(uid, decision.log_result, shop_id=self.shop_id)
 
+    _GOODS_LINK_RE = re.compile(
+        r"https?://(?:(?:mobile\.)?yangkeduo\.com|(?:mobile\.)?pinduoduo\.com)/"
+        r"goods(?:\.html|2\.html)?\?goods_id=(\d+)"
+    )
+
+    @classmethod
+    def _extract_goods_id(cls, text: str) -> str:
+        matched = cls._GOODS_LINK_RE.search(text or "")
+        return matched.group(1) if matched else ""
+
+    @classmethod
+    def _strip_goods_link(cls, text: str) -> str:
+        return cls._GOODS_LINK_RE.sub("", text or "").strip(" \n：:，,。.")
+
     async def _do_reply(self, uid: str, decision: Decision, *, question: str = "") -> None:
         if not self.api:
             return
@@ -443,6 +458,13 @@ class ShopWorker:
         first_reply = not conv or int(conv.get("outbound_count") or 0) == 0
         if decision.reply_type != "IMAGE":
             content = self.guard.apply_disclosure(content, first_reply=first_reply)
+
+        goods_id = ""
+        text_content = content
+        if decision.reply_type != "IMAGE" and self.config.behavior.send_goods_card:
+            goods_id = self._extract_goods_id(content)
+            if goods_id:
+                text_content = self._strip_goods_link(content) or "给您找到这款商品，您看下是不是需要的～"
 
         if decision.action != ACTION_OFF_HOURS:
             delay = jitter(
@@ -453,11 +475,40 @@ class ShopWorker:
                 await asyncio.sleep(delay)
 
         started = now_beijing()
+        card_sent = False
         try:
             if decision.reply_type == "IMAGE":
                 await asyncio.to_thread(self.api.send_image, uid, decision.content)
             else:
-                await asyncio.to_thread(self.api.send_text, uid, content)
+                if goods_id:
+                    try:
+                        await asyncio.to_thread(self.api.send_goods_card, uid, goods_id)
+                        card_sent = True
+                        logger.info(
+                            "[%s] 已发送商品卡片 uid=%s goods_id=%s",
+                            self.shop_id, uid, goods_id,
+                        )
+                    except PDDSendRejected as exc:
+                        # 没有 anti_content 或平台拒绝时，降级为原来的文字链接
+                        logger.warning(
+                            "[%s] 商品卡片发送失败，降级为文字链接 uid=%s: %s",
+                            self.shop_id, uid, exc,
+                        )
+                        text_content = content
+                    except PDDSessionExpired:
+                        raise
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "[%s] 商品卡片异常，降级为文字链接 uid=%s: %s",
+                            self.shop_id, uid, exc,
+                        )
+                        text_content = content
+                if text_content.strip():
+                    await asyncio.to_thread(self.api.send_text, uid, text_content)
+                if card_sent:
+                    content = f"【商品卡片 goods_id={goods_id}】\n{text_content}"
+                else:
+                    content = text_content
         except PDDSendRejected as exc:
             elapsed = int((now_beijing() - started).total_seconds() * 1000)
             self._record_reply(

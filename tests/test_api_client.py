@@ -70,6 +70,23 @@ def test_parse_conversation_new_pdd_shape():
     assert parsed["time"] == "1792328143"
 
 
+def test_extract_and_strip_goods_link():
+    from pdd_cs.engine.worker import ShopWorker
+
+    text = (
+        "这款保暖背心很适合您～\n"
+        "https://mobile.yangkeduo.com/goods.html?goods_id=1016239261096"
+    )
+    assert ShopWorker._extract_goods_id(text) == "1016239261096"
+    stripped = ShopWorker._strip_goods_link(text)
+    assert "goods.html" not in stripped
+    assert "这款保暖背心很适合您" in stripped
+
+
+def test_config_enables_goods_card_by_default(config):
+    assert config.behavior.send_goods_card is True
+
+
 def test_empty_text_rejected():
     client = PDDClient(
         {"PASS_ID": "mock"},

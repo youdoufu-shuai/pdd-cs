@@ -82,7 +82,9 @@ async function syncNow({ reason, force = false } = {}) {
     const cookieText = Object.entries(cookies)
       .map(([name, value]) => `${name}=${value}`)
       .join("; ");
-    const hash = await cookieHash(cookieText);
+    const stored = await chrome.storage.local.get(["antiContent"]);
+    const antiContent = String(stored.antiContent || "");
+    const hash = await cookieHash(cookieText + "|" + antiContent);
     const previous = await chrome.storage.local.get(["lastCookieHash", "lastSyncAt"]);
     if (!force && previous.lastCookieHash === hash && previous.lastSyncAt) {
       const age = Date.now() - new Date(previous.lastSyncAt).getTime();
@@ -97,7 +99,11 @@ async function syncNow({ reason, force = false } = {}) {
         "Content-Type": "application/json",
         "X-Auth-Token": config.token,
       },
-      body: JSON.stringify({ shop_id: config.shopId, cookie: cookieText }),
+      body: JSON.stringify({
+        shop_id: config.shopId,
+        cookie: cookieText,
+        anti_content: antiContent,
+      }),
     });
     let data = {};
     try { data = await response.json(); } catch (err) { data = {}; }
@@ -177,6 +183,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message && message.type === "get-config") {
     getConfig().then(sendResponse);
+    return true;
+  }
+  if (message && message.type === "anti-content") {
+    (async () => {
+      const value = String(message.value || "");
+      if (value.length > 20) {
+        await chrome.storage.local.set({
+          antiContent: value,
+          antiContentAt: new Date().toISOString(),
+        });
+      }
+      sendResponse({ ok: true });
+    })();
     return true;
   }
   if (message && message.type === "save-config") {

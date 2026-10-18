@@ -86,6 +86,7 @@ behavior:
   no_match: human               # 无可用回复时：human 转人工 / default 默认回复 / silent 不回复
   human_takeover_minutes: 15    # 检测到人工客服回复后，暂停自动回复的分钟数
   max_auto_replies_per_conversation: 12
+  send_goods_card: true          # 商品推荐优先发商品卡片（需浏览器扩展同步 anti_content）
 
 # -----------------------------------------------------------------------------
 # 平台规则合规（核心）

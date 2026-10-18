@@ -796,7 +796,9 @@ class DashboardServer:
                     return
                 if path == "/api/login/cookie":
                     result = admin.cookie_login(
-                        str(data.get("shop_id") or ""), str(data.get("cookie") or "")
+                        str(data.get("shop_id") or ""),
+                        str(data.get("cookie") or ""),
+                        anti_content=str(data.get("anti_content") or ""),
                     )
                     reload_result = self._reload()
                     self._send_json({"ok": True, **result, "reload": reload_result})

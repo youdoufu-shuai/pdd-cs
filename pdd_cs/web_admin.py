@@ -209,6 +209,7 @@ def settings_snapshot(config: Config) -> dict[str, Any]:
             "max_reply_chars": config.behavior.max_reply_chars,
             "human_takeover_minutes": config.behavior.human_takeover_minutes,
             "max_auto_replies_per_conversation": config.behavior.max_auto_replies_per_conversation,
+            "send_goods_card": config.behavior.send_goods_card,
         },
         "business_hours": {
             "enabled": config.business_hours.enabled,
@@ -356,6 +357,9 @@ def apply_settings(config: Config, payload: dict[str, Any]) -> dict[str, Any]:
                 behavior["max_auto_replies_per_conversation"], "单会话自动回复上限", 1, 100
             )
             changed.append("behavior.max_auto_replies_per_conversation")
+        if "send_goods_card" in behavior:
+            section["send_goods_card"] = bool(behavior["send_goods_card"])
+            changed.append("behavior.send_goods_card")
 
     business = payload.get("business_hours")
     if isinstance(business, dict):
@@ -991,8 +995,15 @@ class LoginManager:
                     self._active_qr = None
 
     # -- Cookie 粘贴登录 ---------------------------------------------
-    def cookie_login(self, shop_id: str, cookie_text: str) -> dict[str, Any]:
+    def cookie_login(
+        self, shop_id: str, cookie_text: str, *, anti_content: str = ""
+    ) -> dict[str, Any]:
         profile = self._profile(shop_id)
+        anti_content = (anti_content or "").strip()
+        if anti_content:
+            # 页面生成的 anti_content 不是 Cookie，但商品卡片发送需要它；
+            # 作为附加字段保存，PDDClient.send_goods_card 会读取。
+            cookie_text = cookie_text.rstrip("; ") + f"; anti_content={anti_content}"
         try:
             cookies = parse_cookie_text(cookie_text)
         except CookieError as exc:

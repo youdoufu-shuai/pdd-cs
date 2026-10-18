@@ -11,6 +11,19 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://mms.pinduoduo.com/*"],
+      "js": ["content-main.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://mms.pinduoduo.com/*"],
+      "js": ["content-bridge.js"],
+      "run_at": "document_start"
+    }
+  ],
   "action": {
     "default_title": "同步拼多多登录态",
     "default_popup": "popup.html"

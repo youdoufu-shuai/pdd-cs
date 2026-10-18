@@ -316,6 +316,7 @@ class BehaviorConfig:
     human_takeover_minutes: int
     max_auto_replies_per_conversation: int
     typing_simulation: bool
+    send_goods_card: bool
 
 
 @dataclass
@@ -529,6 +530,7 @@ class Config:
                 behavior.get("max_auto_replies_per_conversation"), 12
             ),
             typing_simulation=_as_bool(behavior.get("typing_simulation"), False),
+            send_goods_card=_as_bool(behavior.get("send_goods_card"), True),
         )
 
         comp = data.get("compliance", {})
