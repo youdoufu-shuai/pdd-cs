@@ -363,7 +363,25 @@ def launch_chrome(
     creationflags = 0
     if sys.platform.startswith("win"):
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    return subprocess.Popen(args, creationflags=creationflags)
+    env = os.environ.copy()
+    if headless:
+        # Chrome 的 crashpad 需要一个可写的 HOME；systemd 的 ProtectHome/只读 HOME 会导致启动崩溃
+        home_value = env.get("HOME") or ""
+        writable = False
+        if home_value:
+            try:
+                writable = os.path.isdir(home_value) and os.access(home_value, os.W_OK)
+            except OSError:
+                writable = False
+        if not writable:
+            fallback_home = user_data_dir.parent / "chrome-home"
+            fallback_home.mkdir(parents=True, exist_ok=True)
+            env["HOME"] = str(fallback_home)
+            env["XDG_CONFIG_HOME"] = str(fallback_home / ".config")
+            env["XDG_CACHE_HOME"] = str(fallback_home / ".cache")
+            (fallback_home / ".config").mkdir(exist_ok=True)
+            (fallback_home / ".cache").mkdir(exist_ok=True)
+    return subprocess.Popen(args, creationflags=creationflags, env=env)
 
 
 def _http_json(url: str, method: str = "GET", timeout: float = 3.0):
@@ -527,6 +545,18 @@ def login_with_browser(
                 pass
 
 
+_QR_CLIP_JS = """(() => {
+  const candidates = [...document.querySelectorAll('canvas')].filter(el => {
+    const r = el.getBoundingClientRect();
+    return el.width >= 80 && el.height >= 80 && r.width > 0 && r.height > 0;
+  });
+  if (!candidates.length) return null;
+  const rect = candidates[0].getBoundingClientRect();
+  return {x: Math.max(0, rect.x - 8), y: Math.max(0, rect.y - 8),
+          width: rect.width + 16, height: rect.height + 16};
+})()"""
+
+
 def login_with_browser_headless(
     cookie_store: CookieStore,
     *,
@@ -564,7 +594,8 @@ def login_with_browser_headless(
         cdp.call("Page.enable", {})
         logger.info("无桌面扫码登录已启动，等待扫码…")
 
-        deadline = time.time() + timeout_seconds
+        started_at = time.time()
+        deadline = started_at + timeout_seconds
         last_shot = 0.0
         while time.time() < deadline:
             cookies = read_pdd_cookies(cdp)
@@ -578,11 +609,31 @@ def login_with_browser_headless(
             now = time.time()
             if on_qr is not None and now - last_shot >= 1.5:
                 try:
-                    shot = cdp.call(
-                        "Page.captureScreenshot",
-                        {"format": "png", "captureBeyondViewport": False},
-                        timeout=15,
-                    )
+                    params = {"format": "png", "captureBeyondViewport": True}
+                    try:
+                        clip_result = cdp.call(
+                            "Runtime.evaluate",
+                            {"expression": _QR_CLIP_JS, "returnByValue": True},
+                            timeout=5,
+                        )
+                        clip = clip_result.get("result", {}).get("value")
+                    except Exception:  # noqa: BLE001
+                        clip = None
+                    if clip:
+                        params["clip"] = {
+                            "x": clip["x"],
+                            "y": clip["y"],
+                            "width": clip["width"],
+                            "height": clip["height"],
+                            "scale": 3,
+                        }
+                    elif time.time() - started_at < 20:
+                        # 二维码还没渲染出来：先不传整页截图，等 canvas 出现
+                        last_shot = now
+                        continue
+                    else:
+                        params["captureBeyondViewport"] = False
+                    shot = cdp.call("Page.captureScreenshot", params, timeout=15)
                     data = base64.b64decode(shot.get("data") or "")
                     if data:
                         on_qr(data)

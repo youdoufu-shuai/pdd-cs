@@ -252,6 +252,8 @@ Linux 服务器没有桌面、无法弹出 Chrome 窗口时，v2.0 起支持**�
 原理：headless Chrome 打开登录页，程序通过 CDP 定时截取登录页图片（含二维码）推到面板；
 二维码会实时刷新。登录只在扫码那 1–2 分钟占用 Chrome 内存，完成后释放。
 如果服务器内存紧张，仍推荐用「本机登录 → 导出登录态 → 服务器导入」。
+systemd 服务请给 Chrome 一个可写 HOME（`Environment=HOME=/opt/pdd-cs/data`）并把
+`MemoryMax` 调到 800M 左右；Google 下载慢时可用 `PDD_CS_CHROME_URL` 指向国内镜像。
 
 ## Chrome 自动检测与一键下载（可选）
 

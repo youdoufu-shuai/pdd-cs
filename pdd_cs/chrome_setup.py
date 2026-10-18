@@ -196,7 +196,11 @@ def _resolve_download(version: str = "") -> tuple[str, str]:
     """返回 (版本号, 下载 URL)；支持环境变量指定镜像/离线直链。"""
     direct = (os.environ.get(CHROME_URL_ENV) or "").strip()
     if direct:
-        return version or "custom", direct
+        if version:
+            return version, direct
+        import re
+        match = re.search(r"/(\d+\.\d+\.\d+\.\d+)/", direct)
+        return (match.group(1) if match else "custom"), direct
     meta_url = (os.environ.get(CHROME_META_ENV) or "").strip() or CHROME_FOR_TESTING_META
     meta = _http_json(meta_url)
     try:
@@ -293,6 +297,11 @@ def install_chrome(
         shutil.rmtree(final_dir, ignore_errors=True)
         raise ChromeInstallError("解压完成但没有找到 Chrome 可执行文件，请确认压缩包是否正确")
     _make_executable(executable)
+    # zipfile.extractall 不保留 Unix 可执行位；Chrome 的 crashpad handler 无执行权限会直接崩溃
+    for sibling in ("chrome_crashpad_handler", "chrome_sandbox", "chromedriver"):
+        candidate = executable.parent / sibling
+        if candidate.exists():
+            _make_executable(candidate)
     probe = _probe_launch(executable)
 
     info = {

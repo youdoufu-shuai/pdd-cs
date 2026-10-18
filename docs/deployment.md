@@ -198,6 +198,26 @@ python -m pdd_cs doctor
   服务器内存建议 ≥1G；登录完成后 Chrome 自动关闭；
 - 也可以完全跳过 Chrome：用「本机登录 → 导出登录态 → 服务器导入」或「粘贴 Cookie」。
 
+### Linux 服务器安装 Chrome 的注意事项
+
+- **可写 HOME**：如果服务用 systemd 以非 root 运行，Chrome 的 crashpad 需要可写 HOME。
+  建议在 service 里加：
+  ```
+  Environment=HOME=/opt/pdd-cs/data
+  Environment=XDG_CONFIG_HOME=/opt/pdd-cs/data/.config
+  Environment=XDG_CACHE_HOME=/opt/pdd-cs/data/.cache
+  ```
+  本项目 v2.0.1 起也会在 HOME 不可写时自动兜底到数据目录。
+- **内存**：扫码期间 headless Chrome 峰值约 400–500MB，`MemoryMax` 建议不低于 800M；
+  登录完成/超时后 Chrome 进程会自动退出。
+- **下载慢**：Google 下载 Chrome for Testing 很慢时，可用国内镜像：
+  ```bash
+  PDD_CS_CHROME_URL='https://cdn.npmmirror.com/binaries/chrome-for-testing/155.0.8059.84/linux64/chrome-linux64.zip' \
+    python -m pdd_cs chrome --install
+  ```
+- v2.0.1 起安装器会自动给 `chrome_crashpad_handler` 补执行权限，避免 Linux 下
+  `posix_spawn ... Permission denied` 崩溃。
+
 ### 2.0.1 登录界面（v1.7+）
 
 面板启用访问令牌后，浏览器首次访问会看到安全登录页（不再出现浏览器 401/基本认证弹窗）：
