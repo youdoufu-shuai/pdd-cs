@@ -63,6 +63,7 @@ mkdir -p config/secrets
 PORT="$("$VPY" -c 'from pdd_cs.config import Config; print(Config.load().server.port)')"
 echo
 echo "面板地址：http://127.0.0.1:${PORT}"
+echo "浏览器会自动打开面板；没有自动打开就手动访问上面的地址。"
 echo "按 Ctrl+C 可以停止程序。"
 echo
 exec "$VPY" -m pdd_cs run

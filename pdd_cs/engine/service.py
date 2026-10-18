@@ -95,25 +95,14 @@ class PDDAutoReplyService:
         self.started = False
 
         self.store = Store(config.data_dir / "pdd_cs.db")
-        self.rules: RuleSet = load_rules(
-            config.rules.keyword_file,
-            config.rules.transfer_file,
-            config.rules.replace_file,
-            config.rules.filter_file,
-            config.rules.goods_file,
-            config.rules.blacklist_file,
-        )
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self.rules: RuleSet = RuleSet([], [], [], [], [], [])
         self.knowledge: Optional[KnowledgeBase] = None
-        if config.knowledge.enabled:
-            self.knowledge = KnowledgeBase(
-                config.knowledge.dir,
-                max_chars_per_snippet=config.knowledge.max_chars_per_snippet,
-            )
-        # 质检 / 话术体检用的全局守卫（店铺级守卫在 worker 内）
         self.guard = ComplianceGuard.from_file(config.compliance, config.rules.compliance_file)
         self.notifier = AlertNotifier(config.alerts)
         self.heartbeat = HeartbeatReporter(config.monitor)
         self.qc = QCScanner(config, self.guard, self.store, config.rules.qc_file)
+        self._init_shared()
 
         self.workers: dict[str, ShopWorker] = {}
         self.startup_errors: dict[str, str] = {}
@@ -125,9 +114,34 @@ class PDDAutoReplyService:
         self._build_workers()
 
     # ------------------------------------------------------------------
+    # 共享组件初始化（启动时 / 网页保存设置后重建）
+    # ------------------------------------------------------------------
+    def _init_shared(self) -> None:
+        config = self.config
+        self.rules = load_rules(
+            config.rules.keyword_file,
+            config.rules.transfer_file,
+            config.rules.replace_file,
+            config.rules.filter_file,
+            config.rules.goods_file,
+            config.rules.blacklist_file,
+        )
+        self.knowledge = None
+        if config.knowledge.enabled:
+            self.knowledge = KnowledgeBase(
+                config.knowledge.dir,
+                max_chars_per_snippet=config.knowledge.max_chars_per_snippet,
+            )
+        self.guard = ComplianceGuard.from_file(config.compliance, config.rules.compliance_file)
+        self.notifier = AlertNotifier(config.alerts)
+        self.heartbeat = HeartbeatReporter(config.monitor)
+        self.qc = QCScanner(config, self.guard, self.store, config.rules.qc_file)
+
+    # ------------------------------------------------------------------
     # 构建 / 生命周期
     # ------------------------------------------------------------------
     def _build_workers(self) -> None:
+        self.workers = {}
         for profile in self.config.shops:
             if not profile.enabled:
                 logger.info("店铺 %s 已在配置中禁用，跳过", profile.id)
@@ -151,9 +165,12 @@ class PDDAutoReplyService:
             return None
         return next(iter(self.workers.values()))
 
-    async def start(self) -> None:
-        """启动所有启用店铺；单个店铺失败不影响其它店铺。"""
+    async def _start_workers(self, *, allow_degraded: bool = False) -> list[ShopWorker]:
+        """启动所有已建 worker；返回成功启动的 worker 列表。"""
+        self.startup_errors = {}
         if not self.workers:
+            if allow_degraded:
+                return []
             raise RuntimeError("没有启用的店铺，请检查 config/config.yaml 的 shops 配置")
 
         results = await asyncio.gather(
@@ -168,17 +185,31 @@ class PDDAutoReplyService:
                 logger.exception("店铺 %s 启动异常", worker.shop_id)
 
         started = [worker for worker in self.workers.values() if worker.shop_id not in self.startup_errors]
-        if not started:
+        if not started and not allow_degraded:
             details = "；".join(f"{shop}: {err}" for shop, err in self.startup_errors.items())
             raise RuntimeError(f"所有店铺均启动失败：{details}")
+        return started
 
+    def _start_monitor(self) -> None:
+        if self._alert_task and not self._alert_task.done():
+            return
+        self._alert_task = asyncio.create_task(self._monitor_loop(), name="pdd-cs-monitor")
+
+    async def start(self, *, allow_degraded: bool = False) -> None:
+        """启动所有启用店铺；单个店铺失败不影响其它店铺。
+
+        allow_degraded=True 时即使所有店铺都登录失败也继续运行面板，
+        方便小白在网页里完成登录/设置（网页后台模式）。
+        """
+        self._loop = asyncio.get_running_loop()
+        started = await self._start_workers(allow_degraded=allow_degraded)
         self.started = True
         now = asyncio.get_event_loop().time()
         for shop_id in self.startup_errors:
             self._offline_since[shop_id] = now
-        self._alert_task = asyncio.create_task(self._monitor_loop(), name="pdd-cs-monitor")
+        self._start_monitor()
         await self._maybe_heartbeat(force=True)
-        if self.notifier.enabled:
+        if self.notifier.enabled and started:
             shops = "、".join(worker.shop_display_name for worker in started)
             self.notifier.notify(
                 EVENT_STARTUP,
@@ -189,8 +220,41 @@ class PDDAutoReplyService:
         logger.info(
             "多店铺服务已启动：%d 个店铺（%s）",
             len(started),
-            "、".join(worker.shop_id for worker in started),
+            "、".join(worker.shop_id for worker in started) or "等待网页登录",
         )
+
+    async def reload(self, new_config: Config, *, allow_degraded: bool = True) -> dict[str, Any]:
+        """网页保存设置后热重载：重建规则/知识库/通知与所有店铺 worker。"""
+        self._loop = asyncio.get_running_loop()
+        logger.info("正在应用新配置（会短暂重连店铺）…")
+        for worker in list(self.workers.values()):
+            try:
+                await worker.stop()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("停止店铺 %s 时出错：%s", worker.shop_id, exc)
+        self.config = new_config
+        ensure_dirs(new_config)
+        self._init_shared()
+        self._offline_since.clear()
+        self._offline_alerted.clear()
+        self._build_workers()
+        started = await self._start_workers(allow_degraded=allow_degraded)
+        self.started = True
+        self._start_monitor()
+        await self._maybe_heartbeat(force=True)
+        logger.info("配置已生效：%d 个店铺在线", len(started))
+        return self.status()
+
+    async def reload_from_disk(self, *, allow_degraded: bool = True) -> dict[str, Any]:
+        new_config = Config.load(self.config.source)
+        return await self.reload(new_config, allow_degraded=allow_degraded)
+
+    def submit(self, coro, timeout: float = 120.0):
+        """把协程提交到服务的事件循环（供网页 HTTP 线程调用）。"""
+        loop = self._loop
+        if loop and loop.is_running():
+            return asyncio.run_coroutine_threadsafe(coro, loop).result(timeout)
+        return asyncio.run(coro)
 
     async def stop(self) -> None:
         if self._alert_task:
@@ -208,6 +272,7 @@ class PDDAutoReplyService:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("停止店铺 %s 失败: %s", worker.shop_id, exc)
         self.started = False
+        self._loop = None
         self.store.close()
         logger.info("多店铺服务已停止")
 
@@ -394,6 +459,9 @@ class PDDAutoReplyService:
             "shops_count": len(workers),
             "started_at": iso(self.started_at),
             "started": self.started,
+            "setup_mode": (not self.workers)
+            or (bool(self.workers) and len(self.startup_errors) == len(self.workers)),
+            "online_shops": sum(1 for worker in self.workers.values() if self._worker_connected(worker)),
             "channel": channel,
             "llm": {
                 "enabled": bool(default and default.ai and default.ai.ready),

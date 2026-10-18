@@ -6,8 +6,9 @@
 
 ![运行面板](docs/dashboard.png)
 
-> **第一次用？完全不懂代码也能跑。** Windows 双击 `start.bat`，macOS/Linux 执行 `bash start.sh`，
-> 剩下的按提示走即可；也可以看 **[小白 3 分钟上手指南](docs/beginner.md)**。
+> **第一次用？完全不懂代码也能跑。** Windows 双击 `start.bat`，macOS/Linux 执行 `bash start.sh`；
+> 打开网页后，**登录、店铺、设置、话术全部在面板里点**，不需要在终端输入命令。
+> 图文步骤见 **[小白上手指南](docs/beginner.md)**。
 
 
 ## 它是什么
@@ -50,8 +51,9 @@
 | 话术库 CSV | 关键词 / 转人工 / 替换词 与 Excel CSV 互转，按 id 增量导入 |
 | 客户黑名单 | 按 uid / 关键词静默指定客户（职业打假、恶意骚扰），不自动回复 |
 | 订单上下文 | 客户发来订单卡片后沉淀到会话，后续问答与面板都能看到 |
-| 本地面板 | 商务多彩风格，零前端依赖，`http://127.0.0.1:38617`；**新手引导**、KPI 色带、多店铺切换、搜索、会话详情、测试台 |
-| 可测试 | 自带拼多多 Mock（HTTP + WS），139 个自动化测试 + 60 项全功能验证，无需真实店铺即可全链路验证 |
+| 网页设置中心 | **登录、店铺、AI Key、回复规则、营业时间、告警、话术、知识库全部在浏览器里完成**，终端只负责启动 |
+| 本地面板 | 商务多彩风格，零前端依赖，`http://127.0.0.1:38617`；新手引导、KPI 色带、多店铺切换、搜索、会话详情、测试台 |
+| 可测试 | 自带拼多多 Mock（HTTP + WS），149 个自动化测试 + 63 项全功能验证，无需真实店铺即可全链路验证 |
 
 ## 多店铺与日常运营功能
 
@@ -165,75 +167,38 @@ journalctl -u pdd-cs -f
 
 升级、备份、权限、异地登录风控等完整清单见 [docs/deployment.md](docs/deployment.md)。
 
-## 快速开始
+## 快速开始（全部在网页里完成）
 
-### 小白一键启动（推荐）
+### 第 1 步：启动
 
-- **Windows**：双击 `start.bat`（自动建环境、装依赖、生成配置、启动面板）；
+- **Windows**：下载 ZIP 解压，双击 **`start.bat`**（自动建环境、装依赖、生成配置、打开浏览器）；
 - **macOS / Linux**：在项目目录执行 `bash start.sh`。
 
-看到「面板地址：http://127.0.0.1:38617」就说明起来了。详细图文步骤见 [小白上手指南](docs/beginner.md)。
+第一次约 1–2 分钟；黑窗口保持打开，浏览器会自动打开面板 `http://127.0.0.1:38617`。
+详细图文步骤见 [小白上手指南](docs/beginner.md)。
 
-### 0. 环境
+### 第 2 步：在网页里登录店铺
 
-- Python 3.10+（Windows / macOS / Linux 均可）
-- 本机安装 Chrome（登录时用，程序会自己拉起一个独立浏览器窗口）
+面板顶部 → **「店铺与登录」**：
 
-```bash
-# 方式 A（推荐）：使用仓库
-git clone https://github.com/youdoufu-shuai/pdd-cs.git
-cd pdd-cs
-pip install -r requirements.txt
+- **扫码登录**：点按钮弹出独立 Chrome 窗口，手机扫码登录拼多多商家后台，成功后自动保存；
+- **粘贴 Cookie**：服务器/无桌面环境时，粘贴浏览器 F12 里复制的 Cookie 整行；
+- 多店铺：先在「添加店铺」里加店铺，再逐个登录；
+- 登录态过期：面板提示后重新扫码即可，不需要重开程序。
 
-# 方式 B：pip 安装（不想 clone 仓库时）
-pip install .
-# 安装后可用 `pdd-cs` 命令（等价于 python -m pdd_cs）；
-# `pdd-cs init` 会从包内置模板生成完整配置、人设、知识库和话术规则
-```
+### 第 3 步：在网页里设置
 
-### 1. 初始化配置
+- **「系统设置」**：AI Key/模型、默认回复、转人工策略、回复延迟、营业时间、告警 Webhook、面板端口；
+- **「话术与知识库」**：关键词话术表格编辑、知识库 Markdown、客服人设，保存后立即生效并自动做平台规则检查；
+- 所有设置点「保存并生效」，几秒内自动重连店铺，**无需重启、无需改配置文件**。
 
-```bash
-python -m pdd_cs setup     # 推荐：交互式向导，一路回车即可
-# 或手动生成：python -m pdd_cs init
-```
+### 网页设置中心预览
 
-生成 `config/config.yaml`（pip 安装模式会同时生成 `persona.md`、`knowledge/`、`rules/`）。
-至少改这几处：
+![店铺与登录](docs/admin-shops.png)
 
-- `pdd.shop_hint`：店铺名（仅用于展示）
-- `llm.api_key`：大模型 Key；或设置环境变量 `PDD_CS_LLM_KEY`（不填也能跑，只是不会 AI 回复）
-- `config/persona.md`、`config/knowledge/*.md`：你的店铺人设、发货/售后政策、商品 FAQ
+![系统设置](docs/admin-settings.png)
 
-### 2. 登录拼多多商家后台
-
-```bash
-python -m pdd_cs login
-```
-
-会弹出一个独立的 Chrome 窗口，扫码/账号登录后程序自动读取并保存 Cookie，不需要手动复制。
-多店铺时用 `--shop` 指定店铺（逐个登录）；也可以手动粘贴 Cookie：
-
-```bash
-python -m pdd_cs login --shop shop-a
-python -m pdd_cs login --shop shop-b --cookie "PASS_ID=...; MSA=...; anti_content=..."
-```
-
-### 3. 自检
-
-```bash
-python -m pdd_cs doctor
-```
-
-会逐项检查 Python 依赖、配置、Cookie 有效性、LLM、规则、知识库、面板端口。
-
-### 4. 启动
-
-```bash
-python -m pdd_cs run
-```
-
-打开 `http://127.0.0.1:38617` 查看运行面板。按 `Ctrl+C` 停止。
+![话术与知识库](docs/admin-content.png)
 
 ### 没有拼多多店铺？先看演示
 
@@ -241,25 +206,31 @@ python -m pdd_cs run
 python scripts/demo.py
 ```
 
-会自动启动「2 个 Mock 拼多多店铺 + 智能客服 + 面板」，模拟 7 个客户进线（咨询、快递、砍价、
-退货、投诉、物流、违规话术），自动回复、转人工、质检、风控全链路都会真实跑一遍，
-面板地址 `http://127.0.0.1:38617`。
+会自动启动「2 个 Mock 拼多多店铺 + 智能客服 + 面板」，模拟 7 个客户进线，自动回复、转人工、
+质检、风控全链路都会真实跑一遍，面板地址 `http://127.0.0.1:38617`。
 
-### 决策测试台（不发送消息）
+### 命令行方式（可选，高级用户）
 
 ```bash
-python -m pdd_cs simulate "什么时候发货？" "我要退货" "能便宜点吗"
+git clone https://github.com/youdoufu-shuai/pdd-cs.git
+cd pdd-cs
+pip install -r requirements.txt
+python -m pdd_cs setup      # 交互式向导
+python -m pdd_cs doctor     # 环境自检
+python -m pdd_cs run        # 启动（--open 自动开浏览器）
+python -m pdd_cs simulate "什么时候发货？"   # 终端决策测试台
 ```
 
-或直接在面板的「决策测试台」输入一句话，看决策链会怎么处理。
+pip 安装（不想 clone 时）：`pip install .`，之后可用 `pdd-cs` 命令，`pdd-cs init` 会从包内置模板
+生成完整配置、人设、知识库和话术规则。
 
 ## 功能验证
 
 项目自带两套验证，改完配置/话术/代码后建议各跑一遍：
 
 ```bash
-python -m pytest                 # 139 个自动化测试（单元 + 多店铺端到端 + CLI 子进程）
-python scripts/verify_all.py     # 60 项全功能验证（真起 Mock 拼多多 + 多店铺 + 面板 + CLI + 新手引导/一键启动）
+python -m pytest                 # 149 个自动化测试（单元 + 多店铺端到端 + 网页后台 + CLI 子进程）
+python scripts/verify_all.py     # 63 项全功能验证（真起 Mock 拼多多 + 多店铺 + 网页登录/设置 + 面板 + CLI）
 ```
 
 `verify_all.py` 逐项打印 ✅/❌，覆盖：依赖、配置校验、规则匹配、决策链七种分支、
@@ -332,11 +303,12 @@ pdd-cs/
 │   ├── server.py       # 本地运行面板（HTTP 服务）
 │   ├── web/dashboard.html  # 商务风格面板页面（纯 HTML/CSS/JS）
 │   ├── store.py        # SQLite 存储（多店铺）
+│   ├── web_admin.py    # 网页后台：登录/店铺/设置/话术/知识库
 │   ├── config.py       # 配置加载（多店铺 + 告警 + 质检 + 洞察）
 │   └── __main__.py     # CLI：init/login/run/doctor/simulate/stats/export/lint/qc/alert-test/rules
 ├── config/             # 配置、人设、知识库、规则（可直接改，不用改代码）
 ├── mock/               # 拼多多 Mock 服务（HTTP + WS），用于演示和测试
-├── tests/              # 139 个自动化测试（含多店铺端到端与 CLI）
+├── tests/              # 149 个自动化测试（含多店铺端到端与网页后台）
 ├── docs/               # 平台规则、架构、合规矩阵、运营手册、部署指南、小白指南、协议说明
 ├── deploy/             # systemd 服务文件、docker-compose
 ├── Dockerfile          # 生产镜像（含 strict 健康检查）
@@ -344,7 +316,7 @@ pdd-cs/
 ├── start.sh            # macOS / Linux 一键启动
 └── scripts/
     ├── demo.py         # 无需店铺的多店铺一键演示
-    └── verify_all.py   # 60 项全功能验证报告
+    └── verify_all.py   # 63 项全功能验证报告
 ```
 
 ## 数据与隐私
@@ -357,8 +329,13 @@ pdd-cs/
 ## 常见问题
 
 **Q：我完全不会编程，能用吗？**
-A：可以。Windows 双击 `start.bat`，macOS/Linux 执行 `bash start.sh`，按提示扫码登录即可；
-不会改配置就用 `python -m pdd_cs setup` 向导一路回车。详细步骤见 [小白上手指南](docs/beginner.md)。
+A：可以。Windows 双击 `start.bat`，macOS/Linux 执行 `bash start.sh`，然后在网页里完成：
+「店铺与登录」扫码 → 「系统设置」填 AI/告警 → 「话术与知识库」改话术。全程不用敲命令，
+详细步骤见 [小白上手指南](docs/beginner.md)。
+
+**Q：登录和设置必须在终端里做吗？**
+A：不需要。v1.4 起登录、店铺管理、AI 设置、告警、话术、知识库都在网页面板里完成；
+命令行只是给高级用户/服务器自动化用的备用方式。
 
 **Q：会不会被平台判定为外挂？**
 A：本项目使用你店铺自己的账号、走商家后台前端同样的接口，不爬取他人数据、不做批量注册。

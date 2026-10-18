@@ -17,11 +17,14 @@
 #        name: B店（百货）
 #        cookie_file: config/secrets/shop-b.json
 
-python -m pdd_cs login --shop shop-a
-python -m pdd_cs login --shop shop-b
-python -m pdd_cs doctor          # 逐店铺检查登录态
-python -m pdd_cs run             # 一个进程带起所有店铺
+python -m pdd_cs run             # 启动服务，浏览器打开面板
+# 之后全部在网页完成：
+#   店铺与登录 → 扫码登录 / 粘贴 Cookie（每个店铺一次）
+#   系统设置   → AI Key、回复规则、营业时间、告警
+#   话术与知识库 → 关键词、知识库、人设
 ```
+
+> v1.4 起登录与设置优先在网页面板完成，不需要终端命令；下面的 CLI 命令仍可用于自动化/排障。
 
 单个店铺失效不会影响其它店铺：面板「店铺状态」会显示异常店铺，日志/告警里也会提示重新登录。
 

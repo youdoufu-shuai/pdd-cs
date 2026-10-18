@@ -33,6 +33,27 @@ from urllib.parse import parse_qs, urlparse
 
 from .config import Config
 from .engine.service import PDDAutoReplyService
+from .web_admin import (
+    LoginManager,
+    config_path,
+    SettingsError,
+    add_shop,
+    apply_settings,
+    delete_shop,
+    delete_shop_cookie,
+    list_knowledge,
+    load_keywords,
+    read_knowledge,
+    read_persona,
+    save_keywords,
+    settings_snapshot,
+    shop_snapshots,
+    test_alert,
+    test_llm,
+    update_shop,
+    write_knowledge,
+    write_persona,
+)
 
 logger = logging.getLogger("pdd_cs.server")
 
@@ -64,6 +85,7 @@ class DashboardServer:
     def __init__(self, config: Config, service: PDDAutoReplyService):
         self.config = config
         self.service = service
+        self.admin = LoginManager(config)
         self._httpd: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
 
@@ -104,10 +126,11 @@ class DashboardServer:
     def _make_handler(self):
         service = self.service
         config = self.config
+        admin = self.admin
         auth_token = (config.server.auth_token or "").strip()
 
         class Handler(BaseHTTPRequestHandler):
-            server_version = "pdd-cs/1.3"
+            server_version = "pdd-cs/1.4"
 
             def log_message(self, fmt: str, *args) -> None:  # noqa: A003
                 logger.debug("dashboard: " + fmt, *args)
@@ -184,6 +207,37 @@ class DashboardServer:
                 value = (query.get("shop", [""])[0] or "").strip()
                 return value or None
 
+            def _sync_config(self) -> None:
+                service.config = service.config
+                admin.config = service.config
+                self.admin_sync()
+
+            def admin_sync(self) -> None:
+                admin.config = service.config
+
+            def _reload(self) -> dict:
+                """应用磁盘上的最新配置（网页保存后调用）。"""
+                result = service.submit(service.reload_from_disk(allow_degraded=True), timeout=180)
+                admin.config = service.config
+                return {
+                    "ok": True,
+                    "setup_mode": result.get("setup_mode"),
+                    "online_shops": result.get("online_shops"),
+                    "shops": shop_snapshots(service.config, service.workers),
+                    "warnings": result.get("startup_errors", {}),
+                }
+
+            def _reload_with(self, new_config) -> dict:
+                result = service.submit(service.reload(new_config, allow_degraded=True), timeout=180)
+                admin.config = service.config
+                return {
+                    "ok": True,
+                    "setup_mode": result.get("setup_mode"),
+                    "online_shops": result.get("online_shops"),
+                    "shops": shop_snapshots(service.config, service.workers),
+                    "warnings": result.get("startup_errors", {}),
+                }
+
             # -- GET ----------------------------------------------------
             def do_GET(self) -> None:  # noqa: N802
                 parsed = urlparse(self.path)
@@ -241,6 +295,89 @@ class DashboardServer:
                             "state": status["channel"].get("state"),
                             "shops": status["shops_count"],
                             "connected": status["shops_count"] - len(degraded),
+                        }
+                    )
+                    return
+                if path == "/api/setup":
+                    status = service.status()
+                    self._send_json(
+                        {
+                            "config_path": str(service.config.source or ""),
+                            "setup_mode": status.get("setup_mode"),
+                            "shops": shop_snapshots(service.config, service.workers),
+                            "capability": admin.capability(),
+                            "settings": settings_snapshot(service.config),
+                            "status": {
+                                "started": status.get("started"),
+                                "online_shops": status.get("online_shops"),
+                                "shops_count": status.get("shops_count"),
+                            },
+                        }
+                    )
+                    return
+                if path == "/api/shops":
+                    self._send_json(
+                        {
+                            "ok": True,
+                            "shops": shop_snapshots(service.config, service.workers),
+                            "capability": admin.capability(),
+                        }
+                    )
+                    return
+                if path == "/api/settings":
+                    self._send_json(
+                        {
+                            "ok": True,
+                            "settings": settings_snapshot(service.config),
+                            "capability": admin.capability(),
+                        }
+                    )
+                    return
+                if path == "/api/login/capability":
+                    self._send_json({"ok": True, **admin.capability()})
+                    return
+                if path.startswith("/api/login/sessions/"):
+                    session_id = path.rsplit("/", 1)[-1]
+                    try:
+                        self._send_json({"ok": True, **admin.get_session(session_id)})
+                    except SettingsError as exc:
+                        self._send_json({"error": str(exc)}, status=404)
+                    return
+                if path == "/api/content/persona":
+                    self._send_json({"ok": True, "text": read_persona(service.config)})
+                    return
+                if path == "/api/content/knowledge":
+                    file_name = (query.get("file", [""])[0] or "").strip()
+                    if file_name:
+                        self._send_json(
+                            {
+                                "ok": True,
+                                "name": file_name,
+                                "text": read_knowledge(service.config, file_name),
+                            }
+                        )
+                    else:
+                        self._send_json({"ok": True, "files": list_knowledge(service.config)})
+                    return
+                if path == "/api/rules/keywords":
+                    self._send_json({"ok": True, "rules": load_keywords(service.config)})
+                    return
+                if path == "/api/service/lint":
+                    report = service.lint()
+                    self._send_json(
+                        {
+                            "ok": report.ok,
+                            "summary": report.summary(),
+                            "issues": [
+                                {
+                                    "level": issue.level,
+                                    "source": issue.source,
+                                    "category": issue.category,
+                                    "matched": issue.matched,
+                                    "text": issue.text,
+                                }
+                                for issue in report.issues[:50]
+                            ],
                         }
                     )
                     return
@@ -308,13 +445,113 @@ class DashboardServer:
                         pass
                     self._reject()
                     return
+                data = self._read_json()
+                try:
+                    self._dispatch_post(path, data)
+                except SettingsError as exc:
+                    self._send_json({"error": str(exc)}, status=400)
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("网页后台操作失败: %s", path)
+                    self._send_json({"error": f"操作失败：{exc}"}, status=500)
+
+            def _dispatch_post(self, path: str, data: dict) -> None:
                 if path == "/api/simulate":
-                    data = self._read_json()
                     text = str(data.get("text") or "").strip()
                     if not text:
                         self._send_json({"error": "缺少 text"}, status=400)
                         return
                     self._send_json(service.simulate(text, shop_id=data.get("shop") or None))
+                    return
+                if path == "/api/settings":
+                    apply_settings(service.config, data)
+                    new_config = Config.load(config_path(service.config))
+                    result = self._reload_with(new_config)
+                    result["settings"] = settings_snapshot(service.config)
+                    result["restart_required"] = bool(data.get("server"))
+                    self._send_json(result)
+                    return
+                if path == "/api/settings/test-llm":
+                    self._send_json({"ok": True, **test_llm(service.config)})
+                    return
+                if path == "/api/settings/test-alert":
+                    self._send_json({"ok": True, **test_alert(service.config)})
+                    return
+                if path == "/api/shops/add":
+                    add_shop(service.config, str(data.get("id") or ""), str(data.get("name") or ""))
+                    self._send_json(self._reload())
+                    return
+                if path == "/api/shops/update":
+                    update_shop(
+                        service.config,
+                        str(data.get("shop_id") or ""),
+                        name=data.get("name") if "name" in data else None,
+                        enabled=bool(data["enabled"]) if "enabled" in data else None,
+                    )
+                    self._send_json(self._reload())
+                    return
+                if path == "/api/shops/delete":
+                    delete_shop(service.config, str(data.get("shop_id") or ""))
+                    self._send_json(self._reload())
+                    return
+                if path == "/api/login/browser":
+                    session = admin.start_browser_login(str(data.get("shop_id") or ""))
+                    self._send_json({"ok": True, **session})
+                    return
+                if path == "/api/login/cookie":
+                    result = admin.cookie_login(
+                        str(data.get("shop_id") or ""), str(data.get("cookie") or "")
+                    )
+                    reload_result = self._reload()
+                    self._send_json({"ok": True, **result, "reload": reload_result})
+                    return
+                if path == "/api/login/logout":
+                    removed = delete_shop_cookie(service.config, str(data.get("shop_id") or ""))
+                    self._send_json({"ok": True, "removed": removed, **self._reload()})
+                    return
+                if path == "/api/content/persona":
+                    write_persona(service.config, str(data.get("text") or ""))
+                    result = self._reload()
+                    result["message"] = "人设已保存并生效"
+                    self._send_json(result)
+                    return
+                if path == "/api/content/knowledge":
+                    write_knowledge(
+                        service.config,
+                        str(data.get("name") or ""),
+                        str(data.get("text") or ""),
+                    )
+                    result = self._reload()
+                    result["message"] = "知识库已保存并生效"
+                    self._send_json(result)
+                    return
+                if path == "/api/rules/keywords":
+                    rules = data.get("rules") or []
+                    count = save_keywords(service.config, rules)
+                    reload_result = self._reload()
+                    lint_report = service.lint()
+                    self._send_json(
+                        {
+                            **reload_result,
+                            "ok": True,
+                            "count": count,
+                            "lint": {
+                                "ok": lint_report.ok,
+                                "summary": lint_report.summary(),
+                                "issues": [
+                                    {
+                                        "level": issue.level,
+                                        "source": issue.source,
+                                        "category": issue.category,
+                                        "matched": issue.matched,
+                                    }
+                                    for issue in lint_report.issues[:20]
+                                ],
+                            },
+                        }
+                    )
+                    return
+                if path == "/api/service/reload":
+                    self._send_json(self._reload())
                     return
                 self._send_json({"error": "not found"}, status=404)
 

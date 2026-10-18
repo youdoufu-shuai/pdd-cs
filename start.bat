@@ -80,12 +80,11 @@ if exist "%PORT_FILE%" (
 
 echo.
 echo 面板地址：http://127.0.0.1:!PORT!
-echo 如果没有自动打开浏览器，请手动复制上面的地址。
-start "" "http://127.0.0.1:!PORT!"
+echo 启动后会自动打开浏览器；如果没打开，请手动复制上面的地址。
 echo.
 echo 按 Ctrl+C 可以停止程序。
 echo.
-"%VPY%" -m pdd_cs run
+"%VPY%" -m pdd_cs run --open
 
 echo.
 echo 程序已退出。如果启动失败，请查看上面的错误信息，或运行：

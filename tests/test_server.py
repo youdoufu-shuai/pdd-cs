@@ -43,6 +43,8 @@ def test_page_is_business_style():
     assert "data-tone=" in PAGE_HTML
     assert "shop-pill" in PAGE_HTML
     assert "新手引导" in PAGE_HTML and "三步开始接待" in PAGE_HTML
+    for marker in ("店铺与登录", "系统设置", "话术与知识库", "扫码登录", "粘贴 Cookie", "id=\"login-modal\""):
+        assert marker in PAGE_HTML, f"缺少网页设置中心元素: {marker}"
     assert "linear-gradient" in PAGE_HTML  # 允许克制的渐变（顶栏/KPI 色带）
 
 

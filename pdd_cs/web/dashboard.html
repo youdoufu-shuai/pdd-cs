@@ -169,6 +169,79 @@
   .status .dot.on{box-shadow:0 0 0 3px rgba(52,211,153,.18)}
   @media (max-width:900px){.guide-steps{grid-template-columns:1fr}}
 
+
+  /* ================= 网页设置中心（v1.4） ================= */
+  .tabs{max-width:1360px;margin:0 auto;padding:10px 28px 0;display:flex;gap:8px;flex-wrap:wrap}
+  .tab{border:1px solid var(--line-strong);background:#fff;color:var(--ink-2);border-radius:999px;
+       padding:7px 18px;font-size:13px;cursor:pointer;transition:all .15s;box-shadow:none}
+  .tab:hover{background:#f1f5f9}
+  .tab.active{background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;border-color:#1e40af;
+              box-shadow:0 2px 6px rgba(37,99,235,.25)}
+  .view{display:none}
+  .view.active{display:block}
+  .setup-banner{display:flex;align-items:center;gap:14px;background:linear-gradient(90deg,#fff7ed,#fffbeb);
+    border:1px solid #fde68a;border-left:4px solid #d97706;border-radius:8px;padding:12px 16px;margin-bottom:16px;flex-wrap:wrap}
+  .setup-banner .txt{flex:1;min-width:240px;color:#92400e;font-size:13px}
+  .setup-banner .txt strong{color:#78350f}
+  .small{padding:4px 12px;font-size:12px;border-radius:6px}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .shop-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;padding:14px 16px}
+  .shop-card{border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff;position:relative}
+  .shop-card.logged{border-left:4px solid #059669}
+  .shop-card.offline{border-left:4px solid #e11d48}
+  .shop-card.disabled{opacity:.62}
+  .shop-card .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .shop-card h4{margin:0;font-size:14px}
+  .shop-card .sid{color:var(--muted);font-size:11.5px;margin-top:2px}
+  .shop-card .meta{margin-top:10px;font-size:12px;color:var(--muted);line-height:1.8}
+  .shop-card .actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .form-grid{padding:14px 16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .form-grid .full{grid-column:1/-1}
+  .field{display:block}
+  .field>span{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+  input[type=text],input[type=password],input[type=number],select,textarea{
+    width:100%;border:1px solid var(--line-strong);border-radius:6px;padding:8px 10px;
+    font-size:12.5px;color:var(--ink);background:#fff;outline:none;font-family:inherit}
+  input:focus,select:focus,textarea:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+  textarea{resize:vertical;line-height:1.7}
+  .switch{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);cursor:pointer}
+  .switch input{width:auto;accent-color:#2563eb}
+  .settings-section{padding:4px 16px 14px}
+  .settings-section h4{margin:12px 0 10px;font-size:13px;display:flex;align-items:center;gap:8px}
+  .settings-section h4::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--tone,#2563eb)}
+  .toast{position:fixed;right:24px;bottom:24px;z-index:99;background:#0f2742;color:#fff;border-radius:8px;
+    padding:11px 16px;font-size:13px;box-shadow:0 8px 24px rgba(15,39,66,.28);max-width:420px;
+    opacity:0;transform:translateY(10px);transition:all .2s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast.err{background:#9f1239}
+  .toast.ok{background:#065f46}
+  .modal-mask{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;place-items:center;z-index:80;padding:20px}
+  .modal-mask.show{display:grid}
+  .modal{background:#fff;border-radius:12px;width:min(620px,100%);max-height:86vh;overflow:auto;box-shadow:0 20px 50px rgba(15,23,42,.3)}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .modal-head h3{margin:0;font-size:14px}
+  .modal-body{padding:16px 18px}
+  .modal-body p{font-size:12.5px;color:var(--muted);line-height:1.7}
+  .modal-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+  .login-step{display:flex;gap:10px;align-items:flex-start;padding:8px 0;font-size:12.5px}
+  .login-step .dot2{width:9px;height:9px;border-radius:50%;margin-top:4px;background:#cbd5e1;flex:none}
+  .login-step.active .dot2{background:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+  .login-step.done .dot2{background:#059669}
+  .login-step.fail .dot2{background:#e11d48}
+  .kw-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .kw-table th,.kw-table td{border-bottom:1px solid #eef2f7;padding:8px;text-align:left;vertical-align:top}
+  .kw-table th{color:var(--muted);font-size:11.5px;font-weight:500;background:#fbfcfe}
+  .kw-table input{padding:6px 8px;font-size:12.5px}
+  .kw-list{max-height:420px;overflow:auto;padding:0 16px 14px}
+  .file-list{padding:4px 16px 14px}
+  .file-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed #eef2f7;font-size:12.5px}
+  .file-item:last-child{border-bottom:none}
+  .file-item.active{color:#1d4ed8;font-weight:600}
+  .help-list{font-size:12.5px;color:var(--muted);line-height:1.9;padding:4px 16px 14px}
+  .help-list b{color:var(--ink-2)}
+  .status-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:0 16px 12px}
+  @media (max-width:900px){.form-grid{grid-template-columns:1fr}.tabs{padding:10px 16px 0}}
+
 </style>
 </head>
 <body>
@@ -193,7 +266,19 @@
   </div>
 </header>
 
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-view="overview">运营概览</button>
+  <button class="tab" data-view="shops">店铺与登录</button>
+  <button class="tab" data-view="settings">系统设置</button>
+  <button class="tab" data-view="content">话术与知识库</button>
+</nav>
+
 <main>
+  <div id="setup-banner" class="setup-banner" style="display:none">
+    <div class="txt"><strong>还没有登录店铺。</strong> 小白也能完成：在网页里扫码登录，或粘贴 Cookie，保存后自动生效。</div>
+    <button class="small" id="banner-login-btn">去登录店铺</button>
+  </div>
+  <div id="view-overview" class="view active">
   <div class="section-head">
     <h2>运营概览</h2>
     <span class="hint">数据每 <b id="refresh">5</b> 秒自动刷新 · 仅本机访问</span>
@@ -205,27 +290,27 @@
     <div class="guide-steps">
       <div class="guide-step" style="--step:#2563eb">
         <div class="n">① 登录店铺</div>
-        <div class="desc">手机扫码登录拼多多商家后台，程序自动保存登录态。</div>
-        <code class="cmd" id="guide-login-cmd">python -m pdd_cs login</code>
+        <div class="desc">用手机扫码登录拼多多商家后台，程序自动保存登录态。</div>
+        <code class="cmd" id="guide-login-cmd">前往「店铺与登录」点扫码登录</code>
         <span class="guide-status todo" id="guide-login">等待登录</span>
       </div>
       <div class="guide-step" style="--step:#0d9488">
         <div class="n">② 检查配置</div>
-        <div class="desc">店铺、AI Key、告警都在 config/config.yaml；也可用向导重新生成。</div>
-        <code class="cmd">python -m pdd_cs setup</code>
+        <div class="desc">AI Key、默认回复、营业时间、告警全部在网页里改，保存即生效。</div>
+        <code class="cmd">前往「系统设置」填写 AI / 告警</code>
         <span class="guide-status ok" id="guide-config">已完成</span>
       </div>
       <div class="guide-step" style="--step:#d97706">
         <div class="n">③ 开启接待</div>
-        <div class="desc">保持在线即可，面板实时显示会话、风控与质检。</div>
-        <code class="cmd">python -m pdd_cs run</code>
+        <div class="desc">程序保持运行即可，面板实时显示会话、风控与质检。</div>
+        <code class="cmd">保持程序运行，面板自动刷新</code>
         <span class="guide-status todo" id="guide-run">未启动</span>
       </div>
     </div>
     <div class="guide-actions">
       <button class="ghost" id="copy-login-btn">复制登录命令</button>
       <button class="ghost" id="guide-tips-btn">查看使用提示</button>
-      <span class="meta">没有店铺也可以先跑演示：python scripts/demo.py</span>
+      <span class="meta">没有店铺？可以先用演示模式体验：<b>python scripts/demo.py</b></span>
     </div>
   </section>
 
@@ -309,11 +394,248 @@
         </div>
       </section>
     </aside>
+    </div>
+  </div><!-- /view-overview -->
+
+  <div id="view-shops" class="view">
+    <div class="section-head">
+      <h2>店铺与登录</h2>
+      <span class="hint">扫码登录 / 粘贴 Cookie 都可以，保存后自动生效</span>
+    </div>
+    <div class="grid" style="grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr)">
+      <div class="col-main">
+        <section class="card" data-tone="blue">
+          <div class="card-head"><h3>我的店铺</h3><span class="meta"><button class="ghost small" id="shops-refresh">刷新状态</button></span></div>
+          <div id="shop-cards" class="shop-cards"><div class="empty">加载中…</div></div>
+        </section>
+        <section class="card" data-tone="teal">
+          <div class="card-head"><h3>添加店铺</h3><span class="meta">只有一个店时可跳过，直接登录默认店铺</span></div>
+          <div class="form-grid">
+            <label class="field"><span>店铺 ID（字母/数字/短横线）</span><input type="text" id="new-shop-id" placeholder="例如 shop-a"/></label>
+            <label class="field"><span>店铺名称（展示用）</span><input type="text" id="new-shop-name" placeholder="例如 A店（女装）"/></label>
+            <div class="full btn-row"><button id="add-shop-btn">添加店铺</button></div>
+          </div>
+        </section>
+      </div>
+      <aside class="col-side">
+        <section class="card" data-tone="violet">
+          <div class="card-head"><h3>登录方式说明</h3></div>
+          <div class="help-list">
+            <b>方式一：扫码登录（推荐）</b><br/>
+            点「扫码登录」会弹出一个独立的 Chrome 窗口，用手机扫码登录拼多多商家后台，成功后自动保存登录态。<br/><br/>
+            <b>方式二：粘贴 Cookie</b><br/>
+            在已登录拼多多商家后台的浏览器按 F12 → Network → 任意请求 → 复制请求头里的 Cookie 整行，粘贴进来。<br/><br/>
+            <b>登录态过期怎么办？</b><br/>
+            面板提示掉线或登录过期时，重新扫码登录即可，不需要重开程序。
+          </div>
+        </section>
+        <section class="card" data-tone="amber">
+          <div class="card-head"><h3>服务器上使用？</h3></div>
+          <div class="help-list">
+            服务器没有桌面浏览器，无法弹出扫码窗口。<br/>
+            请在本地电脑登录后，把 <b>config/secrets/店铺id.json</b> 上传到服务器；<br/>
+            或直接在网页里粘贴 Cookie。
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <div id="view-settings" class="view">
+    <div class="section-head">
+      <h2>系统设置</h2>
+      <span class="hint">改完点「保存并生效」，会自动重连店铺（约 3-10 秒）</span>
+    </div>
+    <div class="grid" style="grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr)">
+      <div class="col-main">
+        <section class="card" data-tone="violet">
+          <div class="card-head"><h3>AI 回复设置</h3><span class="meta">不填也能用，仅关键词回复</span></div>
+          <div class="settings-section">
+            <label class="switch"><input type="checkbox" id="set-llm-enabled"/> 启用 AI 回复</label>
+            <div class="form-grid">
+              <label class="field"><span>接口地址（OpenAI 兼容）</span><input type="text" id="set-llm-base" placeholder="https://api.deepseek.com/v1"/></label>
+              <label class="field"><span>模型名称</span><input type="text" id="set-llm-model" placeholder="deepseek-chat"/></label>
+              <label class="field"><span>API Key（留空表示不修改）</span><input type="password" id="set-llm-key" autocomplete="new-password" placeholder="sk-..."/></label>
+              <label class="field"><span>最大回复长度</span><input type="number" id="set-llm-tokens" min="50" max="2000" step="10"/></label>
+              <label class="field"><span>温度（0-2，越大越发散）</span><input type="number" id="set-llm-temp" min="0" max="2" step="0.1"/></label>
+              <div class="full btn-row">
+                <button class="ghost small" id="test-llm-btn">测试 AI 连接</button>
+                <span class="meta" id="llm-state">—</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" data-tone="blue">
+          <div class="card-head"><h3>回复规则</h3><span class="meta">机器人怎么回答客户</span></div>
+          <div class="settings-section">
+            <div class="form-grid">
+              <label class="field full"><span>默认回复（没命中关键词时）</span><textarea id="set-default-reply" rows="3" placeholder="您好，收到您的消息～客服马上为您处理"></textarea></label>
+              <label class="field"><span>完全没答案时</span>
+                <select id="set-no-match">
+                  <option value="human">转人工客服</option>
+                  <option value="default">发默认回复</option>
+                  <option value="silent">不回复</option>
+                </select>
+              </label>
+              <label class="field"><span>单条回复最大字数</span><input type="number" id="set-max-chars" min="20" max="500" step="10"/></label>
+              <label class="field"><span>回复延迟（秒）</span><input type="number" id="set-delay" min="0" max="30" step="0.5"/></label>
+              <label class="field"><span>延迟抖动（秒）</span><input type="number" id="set-jitter" min="0" max="30" step="0.5"/></label>
+              <label class="field"><span>人工接管时长（分钟）</span><input type="number" id="set-takeover" min="0" max="240" step="1"/></label>
+              <label class="field"><span>单会话自动回复上限（条）</span><input type="number" id="set-max-replies" min="1" max="100" step="1"/></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" data-tone="teal">
+          <div class="card-head"><h3>营业时间</h3><span class="meta">下班后自动改用另一套话术</span></div>
+          <div class="settings-section">
+            <label class="switch"><input type="checkbox" id="set-bh-enabled"/> 启用营业时间</label>
+            <div class="form-grid">
+              <label class="field"><span>开始时间</span><input type="text" id="set-bh-start" placeholder="09:00"/></label>
+              <label class="field"><span>结束时间</span><input type="text" id="set-bh-end" placeholder="22:00"/></label>
+              <label class="field full"><span>非营业时间自动回复</span><textarea id="set-bh-reply" rows="2" placeholder="您好，客服已下班，明天 9 点会第一时间回复您"></textarea></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" data-tone="amber">
+          <div class="card-head"><h3>告警通知</h3><span class="meta">掉线 / 登录过期 / 转人工失败推送到群</span></div>
+          <div class="settings-section">
+            <label class="switch"><input type="checkbox" id="set-alerts-enabled"/> 启用告警通知</label>
+            <div class="form-grid">
+              <label class="field"><span>Webhook 地址（钉钉/飞书/企业微信/自定义）</span><input type="text" id="set-alert-webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..."/></label>
+              <label class="field"><span>机器人类型</span>
+                <select id="set-alert-format">
+                  <option value="dingtalk">钉钉</option>
+                  <option value="feishu">飞书</option>
+                  <option value="wecom">企业微信</option>
+                  <option value="generic">自定义 Webhook</option>
+                </select>
+              </label>
+              <label class="field"><span>掉线多久后告警（秒）</span><input type="number" id="set-alert-offline" min="30" max="3600" step="10"/></label>
+              <div class="full btn-row">
+                <button class="ghost small" id="test-alert-btn">发送测试告警</button>
+                <span class="meta" id="alert-state">—</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="col-side">
+        <section class="card" data-tone="rose">
+          <div class="card-head"><h3>面板与安全</h3><span class="meta">服务器部署时用</span></div>
+          <div class="settings-section">
+            <div class="form-grid">
+              <label class="field"><span>面板端口</span><input type="number" id="set-server-port" min="1024" max="65535"/></label>
+              <label class="field"><span>绑定地址</span><input type="text" id="set-server-host" placeholder="127.0.0.1"/></label>
+              <label class="field full"><span>访问令牌（留空不修改；绑 0.0.0.0 时必填）</span><input type="password" id="set-server-token" autocomplete="new-password" placeholder="至少 16 位随机字符串"/></label>
+            </div>
+            <div class="help-list">端口/令牌修改后需要重启程序才生效；其它设置保存后立即生效。</div>
+          </div>
+        </section>
+        <section class="card" data-tone="blue">
+          <div class="card-head"><h3>保存设置</h3></div>
+          <div class="settings-section">
+            <div class="btn-row">
+              <button id="save-settings-btn">保存并生效</button>
+              <button class="ghost small" id="reload-settings-btn">重新加载</button>
+            </div>
+            <div class="help-list" id="settings-state">修改完记得保存。</div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <div id="view-content" class="view">
+    <div class="section-head">
+      <h2>话术与知识库</h2>
+      <span class="hint">改动保存后立即生效，会自动做平台规则检查</span>
+    </div>
+    <div class="grid" style="grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr)">
+      <div class="col-main">
+        <section class="card" data-tone="amber">
+          <div class="card-head"><h3>关键词话术</h3><span class="meta">命中关键词时自动回复</span></div>
+          <div class="kw-list" id="kw-list"><div class="empty">加载中…</div></div>
+          <div class="settings-section">
+            <div class="btn-row">
+              <button class="ghost small" id="kw-add-btn">+ 添加一条</button>
+              <button id="kw-save-btn">保存话术</button>
+            </div>
+            <div class="help-list" id="kw-state">关键词用 | 分隔；回复里可以用 [or] 分隔多条随机回复。</div>
+          </div>
+        </section>
+        <section class="card" data-tone="teal">
+          <div class="card-head"><h3>店铺知识库</h3><span class="meta">AI 回答会参考这些内容</span></div>
+          <div class="file-list" id="knowledge-files"></div>
+          <div class="settings-section">
+            <label class="field"><span>文件名</span><input type="text" id="knowledge-name" placeholder="例如 shipping.md 或 发货说明.md"/></label>
+            <label class="field"><span>内容（Markdown）</span><textarea id="knowledge-text" rows="10" placeholder="# 发货说明&#10;- 默认 48 小时内发货"></textarea></label>
+            <div class="btn-row">
+              <button id="knowledge-save-btn">保存知识库</button>
+              <span class="meta" id="knowledge-state">左侧点文件可编辑</span>
+            </div>
+          </div>
+        </section>
+      </div>
+      <aside class="col-side">
+        <section class="card" data-tone="violet">
+          <div class="card-head"><h3>店主 / 客服人设</h3><span class="meta">影响 AI 说话风格</span></div>
+          <div class="settings-section">
+            <label class="field"><span>人设（Markdown）</span><textarea id="persona-text" rows="16" placeholder="# 客服人设&#10;你是一家女装店的客服，语气亲切、简洁"></textarea></label>
+            <div class="btn-row">
+              <button id="persona-save-btn">保存人设</button>
+              <span class="meta" id="persona-state">—</span>
+            </div>
+          </div>
+        </section>
+        <section class="card" data-tone="rose">
+          <div class="card-head"><h3>平台规则检查</h3><span class="meta">保存话术时自动检查</span></div>
+          <div class="settings-section">
+            <div class="help-list" id="lint-state">还没有检查结果。保存话术后会显示。</div>
+            <button class="ghost small" id="lint-btn">立即检查</button>
+          </div>
+        </section>
+      </aside>
+    </div>
   </div>
 </main>
 
+<div class="modal-mask" id="login-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="login-title">登录店铺</h3><button class="ghost small" id="login-close">关闭</button></div>
+    <div class="modal-body">
+      <div id="login-browser-panel">
+        <p>点击下面按钮会打开一个独立的 Chrome 窗口，请用手机扫码或账号密码登录拼多多商家后台；登录成功后程序会自动保存登录态并关闭浏览器窗口。</p>
+        <div class="login-step" id="login-step-browser"><span class="dot2"></span><span>打开登录窗口</span></div>
+        <div class="login-step" id="login-step-scan"><span class="dot2"></span><span>等待扫码登录</span></div>
+        <div class="login-step" id="login-step-save"><span class="dot2"></span><span>保存登录态并生效</span></div>
+        <div class="btn-row" style="margin-top:12px">
+          <button id="start-browser-login-btn">打开登录窗口</button>
+        </div>
+        <p style="margin-top:12px">没有桌面浏览器（例如服务器）？用下面的「粘贴 Cookie」。</p>
+      </div>
+      <div id="login-cookie-panel" style="display:none">
+        <p>在已登录拼多多商家后台的浏览器按 F12 → Network → 任意请求 → 复制请求头里的 Cookie 整行，粘贴到下面：</p>
+        <textarea id="login-cookie-text" rows="6" placeholder="PASS_ID=...; MSA=...; anti_content=..."></textarea>
+        <div class="btn-row" style="margin-top:12px">
+          <button id="save-cookie-btn">保存 Cookie 并登录</button>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="ghost small" id="switch-browser-login">扫码登录</button>
+        <button class="ghost small" id="switch-cookie-login">粘贴 Cookie</button>
+      </div>
+      <div class="help-list" id="login-state" style="padding:12px 0 0">等待操作…</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
 <footer>
-  <span>pdd-cs v1.3</span>
+  <span>pdd-cs v1.4</span>
   <span class="sep">|</span>
   <span>接口：<a href="/api/status" target="_blank">status</a> · <a href="/api/pending" target="_blank">pending</a> · <a href="/api/insights" target="_blank">insights</a> · <a href="/api/qc" target="_blank">qc</a> · <a href="/api/risk" target="_blank">risk</a></span>
   <span class="sep">|</span>
@@ -406,11 +728,10 @@ function renderGuide(status){
   const connected = shops.filter(x => x.channel && x.channel.connected).length;
   const started = !!status.started;
   const loginEl = $('guide-login'), runEl = $('guide-run');
-  const loginCmd = shops.length > 1
-    ? `python -m pdd_cs login --shop ${shops[0].shop_id}`
-    : 'python -m pdd_cs login';
   const cmdEl = $('guide-login-cmd');
-  if (cmdEl) cmdEl.textContent = loginCmd;
+  if (cmdEl) cmdEl.textContent = shops.length > 1
+    ? '在「店铺与登录」里逐个店铺登录'
+    : '前往「店铺与登录」点扫码登录';
   loginEl.textContent = connected > 0 ? `已连接 ${connected}/${total} 个店铺` : '等待登录';
   loginEl.className = 'guide-status ' + (connected > 0 ? 'ok' : 'todo');
   runEl.textContent = started ? '运行中' : '未启动';
@@ -608,6 +929,9 @@ async function load(){
     renderRisk(risk.data || []);
     renderInsights(insights || {});
     renderQC(qc || {});
+    const needLogin = !!status.setup_mode || (status.online_shops || 0) === 0;
+    const banner = $('setup-banner');
+    if (banner) banner.style.display = needLogin ? 'flex' : 'none';
   }catch(e){
     $('conn-text').textContent = '面板连接失败';
     $('conn-dot').className = 'dot err';
@@ -628,17 +952,14 @@ async function simulate(){
 }
 
 $('shop-select').addEventListener('change', e => { selectedShop = e.target.value; load(); });
-$('copy-login-btn')?.addEventListener('click', async () => {
-  const targetShop = selectedShop !== 'all' ? selectedShop : (currentShops[0]?.shop_id || '');
-  const cmd = 'python -m pdd_cs login' + (currentShops.length > 1 && targetShop ? ' --shop ' + targetShop : '');
-  try {
-    await navigator.clipboard.writeText(cmd);
-    $('copy-login-btn').textContent = '已复制：' + cmd;
-    setTimeout(() => { $('copy-login-btn').textContent = '复制登录命令'; }, 3000);
-  } catch (e) {
-    $('copy-login-btn').textContent = cmd;
-  }
+$('copy-login-btn')?.addEventListener('click', () => {
+  switchView('shops');
+  toast('在「店铺与登录」里扫码或粘贴 Cookie，保存后自动生效');
 });
+$('setup-banner').addEventListener('click', (event) => {
+  if (event.target && event.target.id === 'banner-login-btn') switchView('shops');
+});
+$('banner-login-btn')?.addEventListener('click', () => switchView('shops'));
 $('guide-tips-btn')?.addEventListener('click', () => {
   document.querySelector('.note')?.scrollIntoView({behavior:'smooth', block:'center'});
 });
@@ -647,6 +968,485 @@ $('sim-input').addEventListener('keydown', e => { if(e.key === 'Enter') simulate
 $('conv-search-btn').addEventListener('click', load);
 $('conv-reset-btn').addEventListener('click', () => { $('conv-search').value = ''; load(); });
 $('conv-search').addEventListener('keydown', e => { if(e.key === 'Enter') load(); });
+
+
+// ===================== 网页设置中心 =====================
+const $q = (sel) => document.querySelector(sel);
+let currentView = 'overview';
+let shopsCache = { shops: [], capability: {} };
+let settingsCache = null;
+let keywordRows = [];
+let loginState = { shopId: '', mode: 'browser', sessionId: null, timer: null };
+
+async function apiGet(path) {
+  const resp = await fetch(path, {cache: 'no-store'});
+  let data = {};
+  try { data = await resp.json(); } catch (e) { data = {}; }
+  if (!resp.ok) throw new Error(data.error || ('请求失败（' + resp.status + '）'));
+  return data;
+}
+async function apiPost(path, payload) {
+  const resp = await fetch(path, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload || {})
+  });
+  let data = {};
+  try { data = await resp.json(); } catch (e) { data = {}; }
+  if (!resp.ok) throw new Error(data.error || ('操作失败（' + resp.status + '）'));
+  return data;
+}
+let toastTimer = null;
+function toast(message, type) {
+  const el = $('toast');
+  el.textContent = message;
+  el.className = 'toast show ' + (type || 'ok');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 4200);
+}
+function switchView(name) {
+  currentView = name;
+  try { history.replaceState(null, '', '#' + name); } catch (e) {}
+  document.querySelectorAll('#tabs .tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === name);
+  });
+  document.querySelectorAll('.view').forEach(view => {
+    view.classList.toggle('active', view.id === 'view-' + name);
+  });
+  if (name === 'shops') loadShops();
+  if (name === 'settings') loadSettings();
+  if (name === 'content') loadContent();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+document.querySelectorAll('#tabs .tab').forEach(btn => {
+  btn.addEventListener('click', () => switchView(btn.dataset.view));
+});
+
+// ---------- 店铺与登录 ----------
+async function loadShops() {
+  try {
+    shopsCache = await apiGet('/api/shops');
+    renderShopCards(shopsCache);
+  } catch (e) {
+    $('shop-cards').innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>';
+  }
+}
+function renderShopCards(payload) {
+  const shops = payload.shops || [];
+  const cap = payload.capability || {};
+  const box = $('shop-cards');
+  if (!shops.length) {
+    box.innerHTML = '<div class="empty">还没有店铺，先在下面添加一个</div>';
+    return;
+  }
+  box.innerHTML = shops.map(shop => {
+    const runtime = shop.runtime || {};
+    const channel = runtime.channel || {};
+    const connected = !!channel.connected;
+    const tone = !shop.enabled ? 'neutral' : (connected ? 'good' : (shop.cookie_saved ? 'warn' : 'bad'));
+    const statusText = !shop.enabled ? '已停用' : (connected ? '在线接待' : (shop.cookie_saved ? '等待重连' : '未登录'));
+    const loginText = shop.cookie_saved
+      ? ('已保存登录态' + (shop.cookie_age_hours != null ? '（' + shop.cookie_age_hours + ' 小时前）' : ''))
+      : '还没有登录';
+    const browserDisabled = cap.browser_login ? '' : 'disabled title="当前环境没有 Chrome，请用粘贴 Cookie"';
+    const reconnect = connected ? '' : '<button class="ghost small" data-act="reload" data-shop="' + esc(shop.id) + '">重连</button>';
+    return '<div class="shop-card ' + (connected ? 'logged' : (shop.enabled ? 'offline' : 'disabled')) + '">' +
+      '<div class="row1"><div><h4>' + esc(shop.name) + '</h4><div class="sid">店铺 ID：' + esc(shop.id) + '</div></div>' +
+      '<span class="tag ' + tone + '">' + statusText + '</span></div>' +
+      '<div class="meta">' + esc(loginText) + '<br/>连接状态：' + (connected ? '已连接拼多多长连接' : '未连接') + '</div>' +
+      '<div class="actions">' +
+      '<button class="small" data-act="browser" data-shop="' + esc(shop.id) + '" ' + browserDisabled + '>扫码登录</button>' +
+      '<button class="ghost small" data-act="cookie" data-shop="' + esc(shop.id) + '">粘贴 Cookie</button>' +
+      reconnect +
+      '<button class="ghost small" data-act="' + (shop.enabled ? 'disable' : 'enable') + '" data-shop="' + esc(shop.id) + '">' + (shop.enabled ? '停用' : '启用') + '</button>' +
+      '<button class="ghost small" data-act="delete" data-shop="' + esc(shop.id) + '">删除</button>' +
+      '</div></div>';
+  }).join('');
+  box.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.addEventListener('click', () => shopAction(btn.dataset.act, btn.dataset.shop));
+  });
+}
+async function shopAction(act, shopId) {
+  try {
+    if (act === 'browser') {
+      openLoginModal(shopId, 'browser');
+    } else if (act === 'cookie') {
+      openLoginModal(shopId, 'cookie');
+    } else if (act === 'reload') {
+      const result = await apiPost('/api/service/reload', {});
+      toast(result.online_shops > 0 ? '已重新连接店铺' : '已重新加载，但店铺还没登录', result.online_shops > 0 ? 'ok' : 'err');
+      await loadShops(); load();
+    } else if (act === 'enable' || act === 'disable') {
+      const result = await apiPost('/api/shops/update', {shop_id: shopId, enabled: act === 'enable'});
+      renderShopCards({shops: result.shops, capability: shopsCache.capability});
+      toast(act === 'enable' ? '店铺已启用' : '店铺已停用');
+      load();
+    } else if (act === 'delete') {
+      if (!confirm('确定删除店铺「' + shopId + '」吗？登录态文件不会自动删除。')) return;
+      const result = await apiPost('/api/shops/delete', {shop_id: shopId});
+      renderShopCards({shops: result.shops, capability: shopsCache.capability});
+      toast('店铺已删除');
+      load();
+    }
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+// ---------- 登录弹窗 ----------
+function openLoginModal(shopId, mode) {
+  loginState = { shopId: shopId, mode: mode, sessionId: null, timer: null };
+  $('login-title').textContent = '登录店铺：' + shopId;
+  $('login-modal').classList.add('show');
+  $('login-state').textContent = '等待操作…';
+  ['login-step-browser', 'login-step-scan', 'login-step-save'].forEach(id => {
+    const el = $(id); if (el) el.className = 'login-step';
+  });
+  setLoginMode(mode);
+}
+function closeLoginModal() {
+  $('login-modal').classList.remove('show');
+  if (loginState.timer) clearTimeout(loginState.timer);
+  loginState.timer = null;
+}
+function setLoginMode(mode) {
+  loginState.mode = mode;
+  $('login-browser-panel').style.display = mode === 'browser' ? '' : 'none';
+  $('login-cookie-panel').style.display = mode === 'cookie' ? '' : 'none';
+  $('switch-browser-login').classList.toggle('ghost', mode === 'cookie');
+  $('switch-cookie-login').classList.toggle('ghost', mode === 'browser');
+}
+$('login-close')?.addEventListener('click', closeLoginModal);
+$('login-modal')?.addEventListener('click', (e) => { if (e.target === $('login-modal')) closeLoginModal(); });
+$('switch-browser-login')?.addEventListener('click', () => setLoginMode('browser'));
+$('switch-cookie-login')?.addEventListener('click', () => setLoginMode('cookie'));
+$('start-browser-login-btn')?.addEventListener('click', async () => {
+  try {
+    const stepBrowser = $('login-step-browser');
+    if (stepBrowser) stepBrowser.className = 'login-step active';
+    $('login-state').textContent = '正在打开 Chrome 登录窗口…';
+    const session = await apiPost('/api/login/browser', {shop_id: loginState.shopId});
+    loginState.sessionId = session.session_id;
+    $('login-state').textContent = '已打开登录窗口，请在 Chrome 中扫码登录（完成后会自动保存）';
+    if (stepBrowser) stepBrowser.className = 'login-step done';
+    const scan = $('login-step-scan'); if (scan) scan.className = 'login-step active';
+    pollLogin();
+  } catch (e) {
+    $('login-state').textContent = '无法打开浏览器：' + e.message + '。请改用「粘贴 Cookie」。';
+    toast(e.message, 'err');
+  }
+});
+function pollLogin() {
+  if (!loginState.sessionId) return;
+  loginState.timer = setTimeout(async () => {
+    try {
+      const session = await apiGet('/api/login/sessions/' + loginState.sessionId);
+      if (session.state === 'success') {
+        const scan = $('login-step-scan'); if (scan) scan.className = 'login-step done';
+        const save = $('login-step-save'); if (save) save.className = 'login-step active';
+        $('login-state').textContent = '登录成功，正在应用登录态…';
+        await apiPost('/api/service/reload', {});
+        const save2 = $('login-step-save'); if (save2) save2.className = 'login-step done';
+        toast('登录成功，店铺已上线');
+        closeLoginModal();
+        await loadShops(); load();
+      } else if (session.state === 'failed') {
+        const scan = $('login-step-scan'); if (scan) scan.className = 'login-step fail';
+        $('login-state').textContent = '登录失败：' + session.message + '。可以重试，或改用粘贴 Cookie。';
+      } else {
+        $('login-state').textContent = '等待扫码登录…（' + session.elapsed_seconds + ' 秒）';
+        pollLogin();
+      }
+    } catch (e) {
+      $('login-state').textContent = '查询登录状态失败：' + e.message;
+    }
+  }, 1500);
+}
+$('save-cookie-btn')?.addEventListener('click', async () => {
+  const cookie = $('login-cookie-text').value.trim();
+  if (!cookie) { toast('请先粘贴 Cookie', 'err'); return; }
+  try {
+    $('login-state').textContent = '正在校验并保存 Cookie…';
+    const result = await apiPost('/api/login/cookie', {shop_id: loginState.shopId, cookie: cookie});
+    let message = '登录成功，已保存 ' + result.cookies + ' 个 Cookie';
+    if (result.warnings && result.warnings.length) message += '（注意：' + result.warnings[0] + '）';
+    toast(message);
+    closeLoginModal();
+    await loadShops(); load();
+  } catch (e) {
+    $('login-state').textContent = '登录失败：' + e.message;
+    toast(e.message, 'err');
+  }
+});
+$('add-shop-btn')?.addEventListener('click', async () => {
+  const id = $('new-shop-id').value.trim();
+  const name = $('new-shop-name').value.trim();
+  if (!id) { toast('填写店铺 ID，例如 shop-a', 'err'); return; }
+  try {
+    const result = await apiPost('/api/shops/add', {id: id, name: name || id});
+    $('new-shop-id').value = ''; $('new-shop-name').value = '';
+    renderShopCards({shops: result.shops, capability: shopsCache.capability});
+    toast('店铺已添加，现在可以登录了');
+    load();
+  } catch (e) { toast(e.message, 'err'); }
+});
+$('shops-refresh')?.addEventListener('click', () => { loadShops(); load(); });
+
+// ---------- 系统设置 ----------
+async function loadSettings() {
+  try {
+    const data = await apiGet('/api/settings');
+    settingsCache = data.settings;
+    fillSettings(data.settings);
+    $('settings-state').textContent = '修改完记得点「保存并生效」。';
+  } catch (e) {
+    toast('加载设置失败：' + e.message, 'err');
+  }
+}
+function fillSettings(s) {
+  if (!s) return;
+  const llm = s.llm || {}, behavior = s.behavior || {}, bh = s.business_hours || {};
+  const alerts = s.alerts || {}, server = s.server || {};
+  $('set-llm-enabled').checked = !!llm.enabled;
+  $('set-llm-base').value = llm.base_url || '';
+  $('set-llm-model').value = llm.model || '';
+  $('set-llm-key').value = '';
+  $('set-llm-key').placeholder = llm.api_key_set ? ('已配置' + (llm.api_key_hint || '') + '，留空不修改') : 'sk-...';
+  $('set-llm-tokens').value = llm.max_tokens || 400;
+  $('set-llm-temp').value = llm.temperature == null ? 0.6 : llm.temperature;
+  $('llm-state').textContent = llm.enabled ? (llm.api_key_set ? 'AI 已启用，Key 已配置' : 'AI 已启用，但还没填 Key') : 'AI 未启用';
+  $('set-default-reply').value = behavior.default_reply || '';
+  $('set-no-match').value = behavior.no_match || 'human';
+  $('set-max-chars').value = behavior.max_reply_chars || 180;
+  $('set-delay').value = behavior.reply_delay_seconds == null ? 2 : behavior.reply_delay_seconds;
+  $('set-jitter').value = behavior.reply_delay_jitter == null ? 2 : behavior.reply_delay_jitter;
+  $('set-takeover').value = behavior.human_takeover_minutes == null ? 15 : behavior.human_takeover_minutes;
+  $('set-max-replies').value = behavior.max_auto_replies_per_conversation || 12;
+  $('set-bh-enabled').checked = !!bh.enabled;
+  $('set-bh-start').value = bh.start || '09:00';
+  $('set-bh-end').value = bh.end || '22:00';
+  $('set-bh-reply').value = bh.off_hours_reply || '';
+  $('set-alerts-enabled').checked = !!alerts.enabled;
+  $('set-alert-format').value = alerts.format || 'dingtalk';
+  $('set-alert-webhook').value = '';
+  $('set-alert-webhook').placeholder = alerts.webhook_set ? ('已配置' + (alerts.webhook_hint || '') + '，留空不修改') : 'https://...';
+  $('set-alert-offline').value = alerts.offline_after_seconds || 120;
+  $('alert-state').textContent = alerts.enabled ? (alerts.webhook_set ? '告警已启用' : '告警已启用，但还没填 Webhook') : '告警未启用';
+  $('set-server-port').value = server.port || 38617;
+  $('set-server-host').value = server.host || '127.0.0.1';
+  $('set-server-token').value = '';
+  $('set-server-token').placeholder = server.auth_required ? '已设置访问令牌，留空不修改' : '未设置（仅本机访问时可不设）';
+}
+$('reload-settings-btn')?.addEventListener('click', () => loadSettings());
+$('save-settings-btn')?.addEventListener('click', async () => {
+  const payload = {
+    llm: {
+      enabled: $('set-llm-enabled').checked,
+      base_url: $('set-llm-base').value.trim(),
+      model: $('set-llm-model').value.trim(),
+      max_tokens: Number($('set-llm-tokens').value || 400),
+      temperature: Number($('set-llm-temp').value || 0.6)
+    },
+    behavior: {
+      default_reply: $('set-default-reply').value,
+      no_match: $('set-no-match').value,
+      max_reply_chars: Number($('set-max-chars').value || 180),
+      reply_delay_seconds: Number($('set-delay').value || 0),
+      reply_delay_jitter: Number($('set-jitter').value || 0),
+      human_takeover_minutes: Number($('set-takeover').value || 0),
+      max_auto_replies_per_conversation: Number($('set-max-replies').value || 12)
+    },
+    business_hours: {
+      enabled: $('set-bh-enabled').checked,
+      start: $('set-bh-start').value.trim(),
+      end: $('set-bh-end').value.trim()
+    },
+    alerts: {
+      enabled: $('set-alerts-enabled').checked,
+      format: $('set-alert-format').value,
+      offline_after_seconds: Number($('set-alert-offline').value || 120)
+    },
+    server: {
+      port: Number($('set-server-port').value || 38617),
+      host: $('set-server-host').value.trim()
+    }
+  };
+  const key = $('set-llm-key').value.trim();
+  if (key) payload.llm.api_key = key;
+  const webhook = $('set-alert-webhook').value.trim();
+  if (webhook) payload.alerts.webhook_url = webhook;
+  const token = $('set-server-token').value.trim();
+  if (token) payload.server.auth_token = token;
+  try {
+    $('settings-state').textContent = '正在保存并应用…';
+    const result = await apiPost('/api/settings', payload);
+    settingsCache = result.settings;
+    fillSettings(result.settings);
+    $('settings-state').textContent = result.restart_required
+      ? '已保存。端口/令牌需要重启程序后生效；其它设置已生效。'
+      : '已保存并生效 ✅';
+    toast(result.restart_required ? '已保存（端口/令牌需重启生效）' : '设置已保存并生效');
+    load();
+  } catch (e) {
+    $('settings-state').textContent = '保存失败：' + e.message;
+    toast(e.message, 'err');
+  }
+});
+$('test-llm-btn')?.addEventListener('click', async () => {
+  $('llm-state').textContent = '正在测试…';
+  try {
+    const result = await apiPost('/api/settings/test-llm', {});
+    $('llm-state').textContent = '连接成功（' + result.model + '）：' + result.reply;
+    toast('AI 连接成功');
+  } catch (e) {
+    $('llm-state').textContent = '连接失败：' + e.message;
+    toast(e.message, 'err');
+  }
+});
+$('test-alert-btn')?.addEventListener('click', async () => {
+  $('alert-state').textContent = '正在发送…';
+  try {
+    await apiPost('/api/settings/test-alert', {});
+    $('alert-state').textContent = '测试告警已发送，请查看群消息';
+    toast('测试告警已发送');
+  } catch (e) {
+    $('alert-state').textContent = '发送失败：' + e.message;
+    toast(e.message, 'err');
+  }
+});
+
+// ---------- 话术与知识库 ----------
+async function loadContent() {
+  try {
+    const persona = await apiGet('/api/content/persona');
+    $('persona-text').value = persona.text || '';
+    $('persona-state').textContent = '已加载';
+    const knowledge = await apiGet('/api/content/knowledge');
+    renderKnowledgeFiles(knowledge.files || []);
+    if ((knowledge.files || []).length) {
+      await openKnowledgeFile(knowledge.files[0].name);
+    }
+    const rules = await apiGet('/api/rules/keywords');
+    keywordRows = rules.rules || [];
+    renderKeywords();
+  } catch (e) {
+    toast('加载话术/知识库失败：' + e.message, 'err');
+  }
+}
+function renderKnowledgeFiles(files) {
+  const box = $('knowledge-files');
+  if (!files.length) { box.innerHTML = '<div class="empty">还没有知识库文件</div>'; return; }
+  box.innerHTML = files.map(file => '<div class="file-item" data-file="' + esc(file.name) + '">' +
+    '<span>' + esc(file.name) + '</span><span class="meta">' + file.size + ' 字节 · ' + esc(file.modified_at) + '</span></div>').join('');
+  box.querySelectorAll('.file-item').forEach(item => {
+    item.addEventListener('click', () => openKnowledgeFile(item.dataset.file));
+  });
+}
+async function openKnowledgeFile(name) {
+  try {
+    const data = await apiGet('/api/content/knowledge?file=' + encodeURIComponent(name));
+    $('knowledge-name').value = data.name;
+    $('knowledge-text').value = data.text || '';
+    $('knowledge-state').textContent = '正在编辑：' + data.name;
+    document.querySelectorAll('.file-item').forEach(item => {
+      item.classList.toggle('active', item.dataset.file === name);
+    });
+  } catch (e) { toast(e.message, 'err'); }
+}
+$('knowledge-save-btn')?.addEventListener('click', async () => {
+  const name = $('knowledge-name').value.trim();
+  if (!name) { toast('先填写文件名，例如 shipping.md', 'err'); return; }
+  try {
+    await apiPost('/api/content/knowledge', {name: name, text: $('knowledge-text').value});
+    $('knowledge-state').textContent = '已保存：' + name;
+    toast('知识库已保存并生效');
+    const knowledge = await apiGet('/api/content/knowledge');
+    renderKnowledgeFiles(knowledge.files || []);
+  } catch (e) { toast(e.message, 'err'); }
+});
+$('persona-save-btn')?.addEventListener('click', async () => {
+  try {
+    await apiPost('/api/content/persona', {text: $('persona-text').value});
+    $('persona-state').textContent = '已保存并生效';
+    toast('人设已保存并生效');
+  } catch (e) { toast(e.message, 'err'); }
+});
+function renderKeywords() {
+  const box = $('kw-list');
+  if (!keywordRows.length) {
+    box.innerHTML = '<div class="empty">还没有关键词话术，点下面添加</div>';
+    return;
+  }
+  box.innerHTML = '<table class="kw-table"><thead><tr><th style="width:32%">关键词（用 | 分隔）</th>' +
+    '<th>回复内容</th><th style="width:60px">启用</th><th style="width:52px">操作</th></tr></thead><tbody>' +
+    keywordRows.map((rule, index) => '<tr data-row="' + index + '">' +
+      '<td><input type="text" data-k="keywords" value="' + esc(rule.keywords || '') + '"/></td>' +
+      '<td><textarea rows="2" data-k="reply">' + esc(rule.reply || '') + '</textarea></td>' +
+      '<td><input type="checkbox" data-k="enabled" ' + (rule.enabled !== false ? 'checked' : '') + '/></td>' +
+      '<td><button class="ghost small" data-del="' + index + '">删除</button></td>' +
+      '</tr>').join('') + '</tbody></table>';
+  box.querySelectorAll('button[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      collectKeywordsFromDom();
+      keywordRows.splice(Number(btn.dataset.del), 1);
+      renderKeywords();
+    });
+  });
+}
+function collectKeywordsFromDom() {
+  const rows = [];
+  document.querySelectorAll('#kw-list tbody tr').forEach(tr => {
+    const keywords = tr.querySelector('[data-k="keywords"]').value.trim();
+    const reply = tr.querySelector('[data-k="reply"]').value.trim();
+    const enabled = tr.querySelector('[data-k="enabled"]').checked;
+    if (!keywords && !reply) return;
+    rows.push({keywords: keywords, reply: reply, enabled: enabled, match: 'fuzzy'});
+  });
+  keywordRows = rows;
+}
+$('kw-add-btn')?.addEventListener('click', () => {
+  collectKeywordsFromDom();
+  keywordRows.push({keywords: '', reply: '', enabled: true, match: 'fuzzy'});
+  renderKeywords();
+});
+$('kw-save-btn')?.addEventListener('click', async () => {
+  collectKeywordsFromDom();
+  try {
+    const result = await apiPost('/api/rules/keywords', {rules: keywordRows});
+    $('kw-state').textContent = '已保存 ' + result.count + ' 条话术 ✅';
+    toast('话术已保存并生效');
+    if (result.lint) renderLint(result.lint);
+    load();
+  } catch (e) {
+    $('kw-state').textContent = '保存失败：' + e.message;
+    toast(e.message, 'err');
+  }
+});
+$('lint-btn')?.addEventListener('click', async () => {
+  try {
+    const result = await apiGet('/api/service/lint');
+    renderLint(result);
+  } catch (e) { toast(e.message, 'err'); }
+});
+function renderLint(report) {
+  const box = $('lint-state');
+  const summary = report.summary || {};
+  let html = '检查结果：<b>' + (report.ok ? '通过 ✅' : '发现风险 ❌') + '</b><br/>';
+  if (report.issues && report.issues.length) {
+    html += report.issues.slice(0, 8).map(issue =>
+      '· [' + esc(issue.category) + '] ' + esc(issue.matched) + '（' + esc(issue.source) + '）').join('<br/>');
+  } else {
+    html += '未发现平台规则风险。';
+  }
+  box.innerHTML = html;
+}
+
+// 首次打开时更新新手引导按钮文字
+const guideBtn = $('copy-login-btn');
+if (guideBtn) guideBtn.textContent = '去登录店铺';
+const params = new URLSearchParams(location.search);
+const initialView = params.get('view') || (location.hash || '').replace('#', '');
+if (['overview', 'shops', 'settings', 'content'].includes(initialView)) switchView(initialView);
 
 load();
 setInterval(load, refreshSeconds * 1000);

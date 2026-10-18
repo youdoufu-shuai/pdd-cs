@@ -440,13 +440,13 @@ def cmd_login(args) -> int:
 async def _run_service(config: Config, args) -> int:
     service = PDDAutoReplyService(config)
     dashboard: DashboardServer | None = None
-    try:
-        await service.start()
-    except RuntimeError as exc:
-        print(f"\n❌ 启动失败：{exc}")
-        print("\n店铺登录状态：\n" + _shop_table(config))
-        await service.stop()
-        return 1
+    await service.start(allow_degraded=True)
+    if not service.workers or service.startup_errors:
+        print("\n⚠️  店铺还没登录或启动失败，但面板已经启动——")
+        print("   请在网页里完成登录与设置：面板 →「店铺与登录」→ 扫码登录 / 粘贴 Cookie")
+        for shop_id, error in service.startup_errors.items():
+            print(f"   · {shop_id}: {error}")
+        print()
 
     if config.dashboard.enabled and not args.no_dashboard:
         dashboard = DashboardServer(config, service)
@@ -483,7 +483,7 @@ async def _run_service(config: Config, args) -> int:
             print("访问令牌：已启用（地址后加 ?token=<server.auth_token>，首次访问后会记住）")
         if config.server.host not in {"127.0.0.1", "localhost", "::1", "[::1]"}:
             print(f"⚠️  面板绑定在 {config.server.host}，请确认已设置访问令牌与防火墙白名单")
-        if config.server.auto_open_dashboard:
+        if config.server.auto_open_dashboard or getattr(args, "open", False):
             try:
                 webbrowser.open(dashboard.url)
             except Exception:  # noqa: BLE001
@@ -886,6 +886,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--host", help="面板绑定地址（默认取 config/server.host）")
     run_parser.add_argument("--port", type=int, help="面板端口（默认取 config/server.port，当前 38617）")
     run_parser.add_argument("--no-dashboard", action="store_true", help="不启动监控面板")
+    run_parser.add_argument("--open", action="store_true", help="启动后自动打开浏览器面板")
     run_parser.add_argument("--verbose", action="store_true", help="输出调试日志")
     run_parser.set_defaults(func=cmd_run)
 

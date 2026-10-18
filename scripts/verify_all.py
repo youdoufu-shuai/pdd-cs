@@ -1154,6 +1154,170 @@ async def main(verbose: bool = False) -> int:
         hook_httpd.server_close()
 
     # ---------------------------------------------------------------
+    # 14. 网页后台：登录 / 店铺管理 / 系统设置 / 话术
+    # ---------------------------------------------------------------
+    print("\n[14] 网页后台（登录/设置/话术）")
+    from pdd_cs.config import Config
+    from pdd_cs.engine.service import PDDAutoReplyService
+    from pdd_cs.server import DashboardServer
+
+    web_mock = await MockPDDServer(shop_name="网页测试店").start()
+    web_data = copy.deepcopy(config.data)
+    web_data["app"] = {**web_data.get("app", {}), "data_dir": str(tmp / "web-data")}
+    web_data["pdd"] = {
+        **web_data.get("pdd", {}),
+        "base_url": web_mock.base_url,
+        "ws_url": web_mock.ws_url,
+        "cookie_file": str(tmp / "web-cookies.json"),
+    }
+    web_data["server"] = {
+        "host": "127.0.0.1",
+        "port": 0,
+        "auto_open_dashboard": False,
+        "auth_token": "",
+    }
+    web_data["dashboard"] = {"enabled": False}
+    web_data["shops"] = []
+    web_data["llm"] = {**web_data.get("llm", {}), "enabled": False}
+    web_data["behavior"] = {
+        **web_data.get("behavior", {}),
+        "reply_delay_seconds": 0,
+        "reply_delay_jitter": 0,
+        "default_reply": "网页默认回复（初始）",
+    }
+    web_data["compliance"] = copy.deepcopy(web_data.get("compliance", {}))
+    web_data["compliance"]["risk"] = {
+        **web_data["compliance"].get("risk", {}),
+        "min_send_interval_seconds": 0,
+    }
+    # 隔离：规则/人设/知识库全部指向临时目录，避免网页测试污染仓库文件
+    web_rules = tmp / "web-rules"
+    web_rules.mkdir(parents=True, exist_ok=True)
+    for rule_name in ("keywords", "transfer", "replace", "filters", "goods",
+                      "compliance", "blacklist", "qc"):
+        source_file = PROJECT_ROOT / "config" / "rules" / f"{rule_name}.yaml"
+        if source_file.exists():
+            (web_rules / f"{rule_name}.yaml").write_bytes(source_file.read_bytes())
+    (tmp / "web-knowledge").mkdir(parents=True, exist_ok=True)
+    for knowledge_file in (PROJECT_ROOT / "config" / "knowledge").glob("*.md"):
+        (tmp / "web-knowledge" / knowledge_file.name).write_bytes(knowledge_file.read_bytes())
+    web_data["rules"] = {
+        "keyword_file": str(web_rules / "keywords.yaml"),
+        "transfer_file": str(web_rules / "transfer.yaml"),
+        "replace_file": str(web_rules / "replace.yaml"),
+        "filter_file": str(web_rules / "filters.yaml"),
+        "compliance_file": str(web_rules / "compliance.yaml"),
+        "goods_file": str(web_rules / "goods.yaml"),
+        "blacklist_file": str(web_rules / "blacklist.yaml"),
+        "qc_file": str(web_rules / "qc.yaml"),
+    }
+    web_data["knowledge"] = {**web_data.get("knowledge", {}), "dir": str(tmp / "web-knowledge")}
+    web_data["persona_file"] = str(tmp / "web-persona.md")
+    (tmp / "web-persona.md").write_text(
+        (PROJECT_ROOT / "config" / "persona.md").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    web_cfg = Config(web_data, root=PROJECT_ROOT)
+    web_cfg.source = tmp / "web-config.yaml"  # 隔离：网页设置写到临时文件
+    ensure_dirs(web_cfg)
+    web_service = PDDAutoReplyService(web_cfg)
+    web_dashboard = None
+
+    def _web_get(path: str):
+        with urllib.request.urlopen(web_dashboard.url + path, timeout=20) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    def _web_post(path: str, payload: dict):
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            web_dashboard.url + path,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=180) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    try:
+        await web_service.start(allow_degraded=True)
+        web_dashboard = DashboardServer(web_cfg, web_service)
+        web_dashboard.start()
+
+        async def _web_setup_api():
+            setup = await asyncio.to_thread(_web_get, "api/setup")
+            assert setup["setup_mode"] is True, setup
+            result = await asyncio.to_thread(
+                _web_post, "api/shops/add", {"id": "web-shop", "name": "网页测试店"}
+            )
+            assert any(shop["id"] == "web-shop" for shop in result["shops"]), result
+            settings = await asyncio.to_thread(_web_get, "api/settings")
+            assert settings["settings"]["server"]["port"] == 0 or settings["settings"]["server"]["port"] > 0
+            return "网页 setup/店铺/设置接口正常（免终端添加店铺）"
+
+        await check("网页后台：店铺与设置 API", _web_setup_api)
+
+        async def _web_cookie_login():
+            result = await asyncio.to_thread(
+                _web_post,
+                "api/login/cookie",
+                {"shop_id": "web-shop", "cookie": MOCK_COOKIE},
+            )
+            assert result.get("ok") is True, result
+            assert result.get("session_valid") is True, result
+            assert await asyncio.to_thread(
+                _wait_until, lambda: web_mock.state.ws_connections >= 1, 15
+            ), "网页登录后长连接未建立"
+            status = await asyncio.to_thread(_web_get, "api/status")
+            assert status.get("online_shops", 0) >= 1, status
+            return "网页粘贴 Cookie 登录成功，店铺已上线"
+
+        await check("网页后台：Cookie 登录（免终端）", _web_cookie_login)
+
+        async def _web_settings_effect():
+            # 改默认回复
+            result = await asyncio.to_thread(
+                _web_post,
+                "api/settings",
+                {"behavior": {"default_reply": "网页设置的默认回复", "no_match": "default"}},
+            )
+            assert result.get("ok") is True, result
+            reloaded = await asyncio.to_thread(_web_get, "api/settings")
+            assert reloaded["settings"]["behavior"]["default_reply"] == "网页设置的默认回复"
+
+            # 网页加关键词话术后立即命中
+            rules = await asyncio.to_thread(_web_get, "api/rules/keywords")
+            new_rules = list(rules["rules"]) + [
+                {"keywords": "网页后台测试词", "reply": "网页后台命中回复", "match": "fuzzy"}
+            ]
+            result = await asyncio.to_thread(
+                _web_post, "api/rules/keywords", {"rules": new_rules}
+            )
+            assert result.get("count") == len(new_rules), result
+            simulate = await asyncio.to_thread(
+                _web_get, "api/simulate?text=" + urllib.parse.quote("网页后台测试词")
+            )
+            assert "网页后台命中回复" in (simulate.get("content") or ""), simulate
+
+            # 人设 / 知识库保存
+            result = await asyncio.to_thread(
+                _web_post, "api/content/persona", {"text": "# 网页人设\n你好"}
+            )
+            assert result.get("ok") is True, result
+            persona = await asyncio.to_thread(_web_get, "api/content/persona")
+            assert "网页人设" in persona["text"]
+            return "设置/话术/人设保存后立即生效（无需重启）"
+
+        await check("网页后台：保存设置与话术立即生效", _web_settings_effect)
+    finally:
+        if web_dashboard:
+            web_dashboard.stop()
+        await web_service.stop()
+        await web_mock.stop()
+        try:
+            (PROJECT_ROOT / "config" / "secrets" / "web-shop.json").unlink()
+        except OSError:
+            pass
+
+    # ---------------------------------------------------------------
     # 收尾
     # ---------------------------------------------------------------
     await mock.stop()
