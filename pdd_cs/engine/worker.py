@@ -677,7 +677,7 @@ class ShopWorker:
                 EVENT_TRANSFER,
                 "非人工时段需要人工",
                 f"店铺：{self.shop_display_name}\n客户：{uid}\n原因：{reason}\n"
-                f"人工在线时间：{self.config.human_hours.start}-次日{self.config.human_hours.end}",
+                f"人工在线时间：{self.config.human_hours.start}-{self.config.human_hours.end}",
             )
             logger.info("[%s] 非人工时段，已记录转人工提醒，暂不移动会话", self.shop_id)
             return

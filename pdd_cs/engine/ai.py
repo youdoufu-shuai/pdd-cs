@@ -269,8 +269,9 @@ class AIReplyGenerator:
         human = self.config.human_hours
         if human.enabled:
             active = self._human_hours_active()
+            end_label = f"次日{human.end}" if human.end <= human.start else human.end
             parts.append(
-                f"【人工客服在线时间】{human.start}-次日{human.end if human.end < human.start else human.end}；"
+                f"【人工客服在线时间】{human.start}-{end_label}；"
                 f"当前{'人工在线' if active else '非人工在线时段'}。"
             )
             if not active:
