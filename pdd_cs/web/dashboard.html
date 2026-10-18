@@ -33,6 +33,9 @@
   .dot.on{background:#34d399}.dot.warn{background:#fbbf24}.dot.err{background:#f87171}
   .chip{border:1px solid rgba(255,255,255,.18);border-radius:3px;padding:5px 10px;font-size:12.5px;color:#c7d3e3;white-space:nowrap}
   .clock{font-variant-numeric:tabular-nums;font-size:12.5px;color:#a9b8cc;letter-spacing:.4px}
+  .logout{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#dbe6f5;
+    border-radius:6px;padding:4px 11px;font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .logout:hover{background:rgba(248,113,113,.18);border-color:rgba(248,113,113,.5);color:#fecdd3}
   main{max-width:1360px;margin:0 auto;padding:24px 28px 40px}
   .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 12px}
   .section-head h2{font-size:15px;font-weight:600;margin:0;letter-spacing:.4px}
@@ -267,6 +270,7 @@
       <div class="status"><span class="dot" id="conn-dot"></span><span id="conn-text">连接中</span></div>
       <div class="chip" id="llm-pill">AI 未启用</div>
       <div class="clock" id="clock">--:--:--</div>
+      <button class="logout" id="logout-btn" title="退出登录">退出</button>
     </div>
   </div>
 </header>
@@ -286,7 +290,7 @@
   <div id="view-overview" class="view active">
   <div class="section-head">
     <h2>运营概览</h2>
-    <span class="hint">数据每 <b id="refresh">5</b> 秒自动刷新 · 仅本机访问</span>
+    <span class="hint">数据每 <b id="refresh">5</b> 秒自动刷新 · HTTPS 安全访问</span>
   </div>
   <div class="kpis" id="kpis"></div>
 
@@ -684,9 +688,9 @@
 <div class="toast" id="toast"></div>
 
 <footer>
-  <span>pdd-cs v1.6</span>
+  <span>pdd-cs v1.7</span>
   <span class="sep">|</span>
-  <span>接口：<a href="/api/status" target="_blank">status</a> · <a href="/api/pending" target="_blank">pending</a> · <a href="/api/insights" target="_blank">insights</a> · <a href="/api/qc" target="_blank">qc</a> · <a href="/api/risk" target="_blank">risk</a></span>
+  <span>接口：<a href="api/status" target="_blank">status</a> · <a href="api/pending" target="_blank">pending</a> · <a href="api/insights" target="_blank">insights</a> · <a href="api/qc" target="_blank">qc</a> · <a href="api/risk" target="_blank">risk</a></span>
   <span class="sep">|</span>
   <span>面板仅监听 127.0.0.1，请勿暴露到公网</span>
 </footer>
@@ -860,7 +864,7 @@ async function openConversation(shop, uid, name){
   $('detail-meta').textContent = shopName(shop) + ' · ' + uid;
   $('detail-messages').innerHTML = '<div class="empty">加载中…</div>';
   try{
-    const data = await fetch('/api/messages?uid=' + encodeURIComponent(uid) + '&shop=' + encodeURIComponent(shop) + '&limit=100', {cache:'no-store'}).then(r => r.json());
+    const data = await fetch('api/messages?uid=' + encodeURIComponent(uid) + '&shop=' + encodeURIComponent(shop) + '&limit=100', {cache:'no-store'}).then(r => r.json());
     const rows = data.data || [];
     if(!rows.length){ $('detail-messages').innerHTML = '<div class="empty">暂无消息</div>'; return; }
     $('detail-messages').innerHTML = rows.map(m => {
@@ -950,7 +954,7 @@ function renderQC(data){
 
 async function load(){
   try{
-    const status = await fetch('/api/status', {cache:'no-store'}).then(r => r.json());
+    const status = await fetch('api/status', {cache:'no-store'}).then(r => r.json());
     refreshSeconds = status.refresh_seconds || refreshSeconds;
     $('refresh').textContent = refreshSeconds;
     renderShopSelect(status);
@@ -959,7 +963,8 @@ async function load(){
     const ch = s.channel || {};
     const dot = $('conn-dot');
     dot.className = 'dot ' + (ch.connected ? 'on' : (ch.state === 'error' ? 'err' : 'warn'));
-    $('conn-text').textContent = STATE_LABEL[ch.state] || ch.state || '未知';
+    $('conn-text').textContent = status.setup_mode && status.shops_count === 0
+      ? '待配置店铺' : (STATE_LABEL[ch.state] || ch.state || '未知');
     $('llm-pill').textContent = (s.llm && s.llm.enabled) ? ('AI · ' + s.llm.model) : 'AI 未启用';
     renderKpis(s); renderShops(status.shops || []); renderInfo(s); renderPolicy(s); renderGuide(status);
 
@@ -967,11 +972,11 @@ async function load(){
     const q = $('conv-search').value.trim();
     const searchQuery = q ? '&search=' + encodeURIComponent(q) : '';
     const [conv, pending, risk, insights, qc] = await Promise.all([
-      fetch('/api/conversations?limit=20' + shopQuery + searchQuery, {cache:'no-store'}).then(r => r.json()),
-      fetch('/api/pending' + (shopQuery ? '?' + shopQuery.slice(1) : ''), {cache:'no-store'}).then(r => r.json()),
-      fetch('/api/risk?limit=20' + shopQuery, {cache:'no-store'}).then(r => r.json()),
-      fetch('/api/insights' + (shopQuery ? '?' + shopQuery.slice(1) : ''), {cache:'no-store'}).then(r => r.json()),
-      fetch('/api/qc' + (shopQuery ? '?' + shopQuery.slice(1) : ''), {cache:'no-store'}).then(r => r.json()),
+      fetch('api/conversations?limit=20' + shopQuery + searchQuery, {cache:'no-store'}).then(r => r.json()),
+      fetch('api/pending' + (shopQuery ? '?' + shopQuery.slice(1) : ''), {cache:'no-store'}).then(r => r.json()),
+      fetch('api/risk?limit=20' + shopQuery, {cache:'no-store'}).then(r => r.json()),
+      fetch('api/insights' + (shopQuery ? '?' + shopQuery.slice(1) : ''), {cache:'no-store'}).then(r => r.json()),
+      fetch('api/qc' + (shopQuery ? '?' + shopQuery.slice(1) : ''), {cache:'no-store'}).then(r => r.json()),
     ]);
     renderConversations(conv.data || []);
     renderPending(pending.data || []);
@@ -995,7 +1000,7 @@ async function simulate(){
   try{
     const payload = {text};
     if(selectedShop !== 'all') payload.shop = selectedShop;
-    const data = await fetch('/api/simulate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r => r.json());
+    const data = await fetch('api/simulate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r => r.json());
     $('sim-output').textContent = JSON.stringify(data, null, 2);
   }catch(e){ $('sim-output').textContent = '测试失败: ' + e; }
 }
@@ -1074,7 +1079,7 @@ document.querySelectorAll('#tabs .tab').forEach(btn => {
 // ---------- 店铺与登录 ----------
 async function loadShops() {
   try {
-    shopsCache = await apiGet('/api/shops');
+    shopsCache = await apiGet('api/shops');
     renderShopCards(shopsCache);
   } catch (e) {
     $('shop-cards').innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>';
@@ -1135,17 +1140,17 @@ async function shopAction(act, shopId) {
     } else if (act === 'import') {
       openImportModal(shopId);
     } else if (act === 'reload') {
-      const result = await apiPost('/api/service/reload', {});
+      const result = await apiPost('api/service/reload', {});
       toast(result.online_shops > 0 ? '已重新连接店铺' : '已重新加载，但店铺还没登录', result.online_shops > 0 ? 'ok' : 'err');
       await loadShops(); load();
     } else if (act === 'enable' || act === 'disable') {
-      const result = await apiPost('/api/shops/update', {shop_id: shopId, enabled: act === 'enable'});
+      const result = await apiPost('api/shops/update', {shop_id: shopId, enabled: act === 'enable'});
       renderShopCards({shops: result.shops, capability: shopsCache.capability});
       toast(act === 'enable' ? '店铺已启用' : '店铺已停用');
       load();
     } else if (act === 'delete') {
       if (!confirm('确定删除店铺「' + shopId + '」吗？登录态文件不会自动删除。')) return;
-      const result = await apiPost('/api/shops/delete', {shop_id: shopId});
+      const result = await apiPost('api/shops/delete', {shop_id: shopId});
       renderShopCards({shops: result.shops, capability: shopsCache.capability});
       toast('店铺已删除');
       load();
@@ -1154,6 +1159,20 @@ async function shopAction(act, shopId) {
     toast(e.message, 'err');
   }
 }
+
+// ---------- 退出登录 / 地址栏令牌清理 ----------
+$('logout-btn')?.addEventListener('click', async () => {
+  try { await apiPost('api/auth/logout', {}); } catch (e) { /* 忽略网络错误，直接回登录页 */ }
+  location.replace('./');
+});
+try {
+  const current = new URL(location.href);
+  if (current.searchParams.has('token')) {
+    current.searchParams.delete('token');
+    const query = current.searchParams.toString();
+    history.replaceState(null, '', current.pathname + (query ? '?' + query : '') + current.hash);
+  }
+} catch (e) { /* 老浏览器忽略 */ }
 
 // ---------- 运行环境 · Chrome ----------
 function renderChromeCard(cap) {
@@ -1187,7 +1206,7 @@ function renderChromeCard(cap) {
 
 async function refreshChromeStatus() {
   try {
-    const cap = await apiGet('/api/login/capability');
+    const cap = await apiGet('api/login/capability');
     renderChromeCard(cap);
   } catch (e) {
     const state = $('chrome-state');
@@ -1200,7 +1219,7 @@ function pollChromeInstall() {
     const progress = $('chrome-progress');
     const installBtn = $('chrome-install-btn');
     try {
-      const session = await apiGet('/api/login/chrome/session');
+      const session = await apiGet('api/login/chrome/session');
       progress.style.display = '';
       progress.textContent = session.message + (session.percent != null ? '（' + session.percent + '%）' : '');
       if (session.state === 'success') {
@@ -1233,7 +1252,7 @@ $('chrome-install-btn')?.addEventListener('click', async () => {
   progress.style.display = '';
   progress.textContent = '正在准备下载 Chrome（约 150MB，请保持页面打开）…';
   try {
-    await apiPost('/api/login/chrome/install', {});
+    await apiPost('api/login/chrome/install', {});
     pollChromeInstall();
   } catch (e) {
     progress.textContent = '下载失败：' + e.message;
@@ -1275,7 +1294,7 @@ $('start-browser-login-btn')?.addEventListener('click', async () => {
     const stepBrowser = $('login-step-browser');
     if (stepBrowser) stepBrowser.className = 'login-step active';
     $('login-state').textContent = '正在打开 Chrome 登录窗口…';
-    const session = await apiPost('/api/login/browser', {shop_id: loginState.shopId});
+    const session = await apiPost('api/login/browser', {shop_id: loginState.shopId});
     loginState.sessionId = session.session_id;
     $('login-state').textContent = '已打开登录窗口，请在 Chrome 中扫码登录（完成后会自动保存）';
     if (stepBrowser) stepBrowser.className = 'login-step done';
@@ -1290,12 +1309,12 @@ function pollLogin() {
   if (!loginState.sessionId) return;
   loginState.timer = setTimeout(async () => {
     try {
-      const session = await apiGet('/api/login/sessions/' + loginState.sessionId);
+      const session = await apiGet('api/login/sessions/' + loginState.sessionId);
       if (session.state === 'success') {
         const scan = $('login-step-scan'); if (scan) scan.className = 'login-step done';
         const save = $('login-step-save'); if (save) save.className = 'login-step active';
         $('login-state').textContent = '登录成功，正在应用登录态…';
-        await apiPost('/api/service/reload', {});
+        await apiPost('api/service/reload', {});
         const save2 = $('login-step-save'); if (save2) save2.className = 'login-step done';
         toast('登录成功，店铺已上线');
         closeLoginModal();
@@ -1317,7 +1336,7 @@ $('save-cookie-btn')?.addEventListener('click', async () => {
   if (!cookie) { toast('请先粘贴 Cookie', 'err'); return; }
   try {
     $('login-state').textContent = '正在校验并保存 Cookie…';
-    const result = await apiPost('/api/login/cookie', {shop_id: loginState.shopId, cookie: cookie});
+    const result = await apiPost('api/login/cookie', {shop_id: loginState.shopId, cookie: cookie});
     let message = '登录成功，已保存 ' + result.cookies + ' 个 Cookie';
     if (result.warnings && result.warnings.length) message += '（注意：' + result.warnings[0] + '）';
     toast(message);
@@ -1353,7 +1372,7 @@ function openExportModal(shopId) {
   $('export-code').value = '';
   $('export-state').textContent = '正在读取登录态…';
   $('export-modal').classList.add('show');
-  apiGet('/api/login/export?shop_id=' + encodeURIComponent(shopId))
+  apiGet('api/login/export?shop_id=' + encodeURIComponent(shopId))
     .then(result => {
       exportData = result;
       $('export-code').value = result.code;
@@ -1437,7 +1456,7 @@ $('import-btn')?.addEventListener('click', async () => {
   button.disabled = true;
   $('import-state').textContent = '正在校验并导入登录态…';
   try {
-    const result = await apiPost('/api/login/import', {shop_id: importShopId, text: text});
+    const result = await apiPost('api/login/import', {shop_id: importShopId, text: text});
     let message = '导入成功，已保存 ' + result.cookies + ' 个 Cookie';
     if (result.session_valid) message += '，登录态有效';
     if (result.warnings && result.warnings.length) message += '（' + result.warnings[0] + '）';
@@ -1458,7 +1477,7 @@ $('add-shop-btn')?.addEventListener('click', async () => {
   const name = $('new-shop-name').value.trim();
   if (!id) { toast('填写店铺 ID，例如 shop-a', 'err'); return; }
   try {
-    const result = await apiPost('/api/shops/add', {id: id, name: name || id});
+    const result = await apiPost('api/shops/add', {id: id, name: name || id});
     $('new-shop-id').value = ''; $('new-shop-name').value = '';
     renderShopCards({shops: result.shops, capability: shopsCache.capability});
     toast('店铺已添加，现在可以登录了');
@@ -1470,7 +1489,7 @@ $('shops-refresh')?.addEventListener('click', () => { loadShops(); load(); });
 // ---------- 系统设置 ----------
 async function loadSettings() {
   try {
-    const data = await apiGet('/api/settings');
+    const data = await apiGet('api/settings');
     settingsCache = data.settings;
     fillSettings(data.settings);
     $('settings-state').textContent = '修改完记得点「保存并生效」。';
@@ -1554,7 +1573,7 @@ $('save-settings-btn')?.addEventListener('click', async () => {
   if (token) payload.server.auth_token = token;
   try {
     $('settings-state').textContent = '正在保存并应用…';
-    const result = await apiPost('/api/settings', payload);
+    const result = await apiPost('api/settings', payload);
     settingsCache = result.settings;
     fillSettings(result.settings);
     $('settings-state').textContent = result.restart_required
@@ -1570,7 +1589,7 @@ $('save-settings-btn')?.addEventListener('click', async () => {
 $('test-llm-btn')?.addEventListener('click', async () => {
   $('llm-state').textContent = '正在测试…';
   try {
-    const result = await apiPost('/api/settings/test-llm', {});
+    const result = await apiPost('api/settings/test-llm', {});
     $('llm-state').textContent = '连接成功（' + result.model + '）：' + result.reply;
     toast('AI 连接成功');
   } catch (e) {
@@ -1581,7 +1600,7 @@ $('test-llm-btn')?.addEventListener('click', async () => {
 $('test-alert-btn')?.addEventListener('click', async () => {
   $('alert-state').textContent = '正在发送…';
   try {
-    await apiPost('/api/settings/test-alert', {});
+    await apiPost('api/settings/test-alert', {});
     $('alert-state').textContent = '测试告警已发送，请查看群消息';
     toast('测试告警已发送');
   } catch (e) {
@@ -1593,15 +1612,15 @@ $('test-alert-btn')?.addEventListener('click', async () => {
 // ---------- 话术与知识库 ----------
 async function loadContent() {
   try {
-    const persona = await apiGet('/api/content/persona');
+    const persona = await apiGet('api/content/persona');
     $('persona-text').value = persona.text || '';
     $('persona-state').textContent = '已加载';
-    const knowledge = await apiGet('/api/content/knowledge');
+    const knowledge = await apiGet('api/content/knowledge');
     renderKnowledgeFiles(knowledge.files || []);
     if ((knowledge.files || []).length) {
       await openKnowledgeFile(knowledge.files[0].name);
     }
-    const rules = await apiGet('/api/rules/keywords');
+    const rules = await apiGet('api/rules/keywords');
     keywordRows = rules.rules || [];
     renderKeywords();
   } catch (e) {
@@ -1619,7 +1638,7 @@ function renderKnowledgeFiles(files) {
 }
 async function openKnowledgeFile(name) {
   try {
-    const data = await apiGet('/api/content/knowledge?file=' + encodeURIComponent(name));
+    const data = await apiGet('api/content/knowledge?file=' + encodeURIComponent(name));
     $('knowledge-name').value = data.name;
     $('knowledge-text').value = data.text || '';
     $('knowledge-state').textContent = '正在编辑：' + data.name;
@@ -1632,16 +1651,16 @@ $('knowledge-save-btn')?.addEventListener('click', async () => {
   const name = $('knowledge-name').value.trim();
   if (!name) { toast('先填写文件名，例如 shipping.md', 'err'); return; }
   try {
-    await apiPost('/api/content/knowledge', {name: name, text: $('knowledge-text').value});
+    await apiPost('api/content/knowledge', {name: name, text: $('knowledge-text').value});
     $('knowledge-state').textContent = '已保存：' + name;
     toast('知识库已保存并生效');
-    const knowledge = await apiGet('/api/content/knowledge');
+    const knowledge = await apiGet('api/content/knowledge');
     renderKnowledgeFiles(knowledge.files || []);
   } catch (e) { toast(e.message, 'err'); }
 });
 $('persona-save-btn')?.addEventListener('click', async () => {
   try {
-    await apiPost('/api/content/persona', {text: $('persona-text').value});
+    await apiPost('api/content/persona', {text: $('persona-text').value});
     $('persona-state').textContent = '已保存并生效';
     toast('人设已保存并生效');
   } catch (e) { toast(e.message, 'err'); }
@@ -1687,7 +1706,7 @@ $('kw-add-btn')?.addEventListener('click', () => {
 $('kw-save-btn')?.addEventListener('click', async () => {
   collectKeywordsFromDom();
   try {
-    const result = await apiPost('/api/rules/keywords', {rules: keywordRows});
+    const result = await apiPost('api/rules/keywords', {rules: keywordRows});
     $('kw-state').textContent = '已保存 ' + result.count + ' 条话术 ✅';
     toast('话术已保存并生效');
     if (result.lint) renderLint(result.lint);
@@ -1699,7 +1718,7 @@ $('kw-save-btn')?.addEventListener('click', async () => {
 });
 $('lint-btn')?.addEventListener('click', async () => {
   try {
-    const result = await apiGet('/api/service/lint');
+    const result = await apiGet('api/service/lint');
     renderLint(result);
   } catch (e) { toast(e.message, 'err'); }
 });

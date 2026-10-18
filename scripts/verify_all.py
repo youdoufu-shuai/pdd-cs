@@ -1097,33 +1097,60 @@ async def main(verbose: bool = False) -> int:
             auth_dashboard.start()
             try:
                 base = auth_dashboard.url
+                token = auth_cfg.server.auth_token
 
-                def _code(url, token="", method="GET", payload=None):
+                def _call(url, token="", method="GET", payload=None, headers=None):
                     data = json.dumps(payload).encode("utf-8") if payload is not None else None
-                    headers = {"Content-Type": "application/json"}
+                    request_headers = {"Content-Type": "application/json"}
                     if token:
-                        headers["X-Auth-Token"] = token
-                    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+                        request_headers["X-Auth-Token"] = token
+                    request_headers.update(headers or {})
+                    req = urllib.request.Request(url, data=data, headers=request_headers, method=method)
                     try:
                         with urllib.request.urlopen(req, timeout=5) as resp:
-                            return resp.status
+                            return resp.status, dict(resp.headers), resp.read().decode("utf-8", "replace")
                     except urllib.error.HTTPError as exc:
-                        return exc.code
+                        return exc.code, dict(exc.headers), exc.read().decode("utf-8", "replace")
 
-                assert await asyncio.to_thread(_code, base + "healthz") == 200
-                assert await asyncio.to_thread(_code, base + "api/status") == 401
-                assert await asyncio.to_thread(
-                    _code, base + "?token=" + auth_cfg.server.auth_token
-                ) == 200
-                assert await asyncio.to_thread(
-                    _code, base + "api/status", auth_cfg.server.auth_token
-                ) == 200
-                return "未带令牌 401 / 带令牌 200；健康检查放行"
+                status, _, _ = await asyncio.to_thread(_call, base + "healthz")
+                assert status == 200
+                status, _, body = await asyncio.to_thread(_call, base)
+                assert status == 200 and "安全登录" in body and "login-form" in body
+                assert token not in body
+                status, _, _ = await asyncio.to_thread(_call, base + "api/status")
+                assert status == 401
+
+                status, _, _ = await asyncio.to_thread(
+                    _call, base + "api/auth/login", "", "POST", {"token": "wrong"}
+                )
+                assert status == 401
+                status, headers, _ = await asyncio.to_thread(
+                    _call, base + "api/auth/login", "", "POST", {"token": token}
+                )
+                assert status == 200 and "pdd_cs_token=" in headers.get("Set-Cookie", "")
+                cookie = headers["Set-Cookie"].split(";", 1)[0]
+                status, _, body = await asyncio.to_thread(
+                    _call, base, "", "GET", None, {"Cookie": cookie}
+                )
+                assert status == 200 and "运行中心" in body
+                status, _, _ = await asyncio.to_thread(
+                    _call, base + "api/status", "", "GET", None, {"Cookie": cookie}
+                )
+                assert status == 200
+                status, _, _ = await asyncio.to_thread(
+                    _call, base + "?token=" + token
+                )
+                assert status == 200
+                status, _, _ = await asyncio.to_thread(
+                    _call, base + "api/status", token
+                )
+                assert status == 200
+                return "登录页 200 / 未登录 API 401 / 令牌登录写入 Cookie / 登出清除，全部通过"
             finally:
                 auth_dashboard.stop()
                 auth_service.store.close()
 
-        await check("面板访问令牌（服务器安全）", _auth_token)
+        await check("登录页与访问令牌（服务器安全）", _auth_token)
 
         async def _env_override():
             old_port = os.environ.get("PDD_CS_PORT")

@@ -197,6 +197,30 @@ python -m pdd_cs doctor
   请继续使用「本机登录 → 导出登录态 → 服务器导入」，或自行配置 Xvfb/VNC 后把二维码显示出来；
 - 也可以完全跳过 Chrome：用「导入登录态」或「粘贴 Cookie」。
 
+### 2.0.1 登录界面（v1.7+）
+
+面板启用访问令牌后，浏览器首次访问会看到安全登录页（不再出现浏览器 401/基本认证弹窗）：
+
+- 令牌来源：`PDD_CS_AUTH_TOKEN` 环境变量，或 `config/config.yaml` 的 `server.auth_token`；
+  systemd 部署见 `/etc/pdd-cs.env`，建议同时记到 `/opt/pdd-cs/access-credentials.txt`；
+- 登录成功写入 HttpOnly Cookie，HTTPS 下为 Secure；面板右上角可「退出」；
+- 登录失败 8 次/5 分钟会限速 429；登录接口本身要求 JSON + 同源，避免被跨站滥用；
+- Nginx 反代只需：
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:38617;
+    proxy_http_version 1.1;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+**不要**再配置 `auth_basic`、`proxy_set_header X-Auth-Token ...` 或 `proxy_hide_header Set-Cookie`，
+否则浏览器先弹基本认证框，登录页不会显示；应用会自己完成令牌登录。保留 TLS 证书和健康检查即可。
+
 ### 2.1 端口与访问令牌（服务器必看）
 
 **端口**：默认 **38617**，刻意避开 80/443/8080/8787 等常见端口，减少冲突和扫描。

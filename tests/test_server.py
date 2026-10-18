@@ -118,12 +118,14 @@ def test_dashboard_endpoints(service):
         dashboard.stop()
 
 
-def _request(url: str, token: str = "", method: str = "GET", payload: dict | None = None):
+def _request(url: str, token: str = "", method: str = "GET", payload: dict | None = None,
+             headers: dict | None = None):
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    headers = {"Content-Type": "application/json"}
+    request_headers = {"Content-Type": "application/json"}
     if token:
-        headers["X-Auth-Token"] = token
-    request = urllib.request.Request(url, data=data, headers=headers, method=method)
+        request_headers["X-Auth-Token"] = token
+    request_headers.update(headers or {})
+    request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=5) as resp:
             return resp.status, resp.read().decode("utf-8"), dict(resp.headers)
@@ -144,18 +146,52 @@ def test_dashboard_auth_token(service):
         code, body, _ = _request(base + "healthz")
         assert code == 200 and json.loads(body)["ok"] is True
 
-        # 页面与接口未带令牌 -> 401
-        code, body, _ = _request(base)
-        assert code == 401 and "需要访问令牌" in body
+        # 未登录：页面展示漂亮登录页（200），API 仍返回 401
+        code, body, headers = _request(base)
+        assert code == 200 and "安全登录" in body and "login-form" in body
+        assert token not in body
+        assert "pdd_cs_token=" not in headers.get("Set-Cookie", "")
         code, body, _ = _request(base + "api/status")
         assert code == 401
         code, body, _ = _request(base + "api/simulate", method="POST", payload={"text": "你好"})
         assert code == 401
 
+        # 错误令牌 -> 401；正确令牌 -> 写入 HttpOnly Cookie
+        code, body, _ = _request(
+            base + "api/auth/login", method="POST", payload={"token": "wrong-token"}
+        )
+        assert code == 401 and "不正确" in body
+        code, body, headers = _request(
+            base + "api/auth/login", method="POST", payload={"token": token}
+        )
+        assert code == 200 and json.loads(body)["ok"] is True
+        set_cookie = headers.get("Set-Cookie", "")
+        assert "pdd_cs_token=" in set_cookie and "HttpOnly" in set_cookie and "SameSite=Lax" in set_cookie
+        cookie = set_cookie.split(";", 1)[0]
+        code, body, _ = _request(base, headers={"Cookie": cookie})
+        assert code == 200 and "运行中心" in body
+        code, body, _ = _request(base + "api/status", headers={"Cookie": cookie})
+        assert code == 200
+
+        # 跨站登录请求被拒绝
+        code, body, _ = _request(
+            base + "api/auth/login", method="POST", payload={"token": token},
+            headers={"Origin": "https://evil.example"},
+        )
+        assert code == 403
+
         # ?token= 访问页面会写入 Cookie
         code, body, headers = _request(base + "?token=" + token)
         assert code == 200 and "运行中心" in body
         assert "pdd_cs_token=" in headers.get("Set-Cookie", "")
+
+        # 退出登录：清除 Cookie
+        code, body, headers = _request(
+            base + "api/auth/logout", method="POST", payload={}, headers={"Cookie": cookie}
+        )
+        assert code == 200 and "Max-Age=0" in headers.get("Set-Cookie", "")
+        code, body, _ = _request(base + "api/status")
+        assert code == 401
 
         # 请求头带令牌 -> 正常
         code, body, _ = _request(base + "api/status", token=token)

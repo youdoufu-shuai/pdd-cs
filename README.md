@@ -188,6 +188,19 @@ journalctl -u pdd-cs -f
   没有 Chrome 也能正常运行：本机登录后「导出登录态」再到服务器「导入登录态」，或粘贴 Cookie；
   也可以一键下载 Chrome（见下方「Chrome 自动检测与一键下载」）。
 
+## 登录界面与访问令牌
+
+![安全登录页](docs/login.png)
+
+- 公网/反向代理访问时，首先看到的是**安全登录页**：输入访问令牌后进入控制台，令牌不再出现在网址里；
+- 令牌来自服务器环境变量 `PDD_CS_AUTH_TOKEN`（或 `config/config.yaml` 的 `server.auth_token`）；
+  systemd 部署通常在 `/etc/pdd-cs.env`，也建议记录到 `/opt/pdd-cs/access-credentials.txt`；
+- 登录状态保存在 **HttpOnly Cookie**：HTTPS 下自动加 `Secure`，页面右上角「退出」可清除；
+- 登录失败 8 次/5 分钟会触发限速；所有设置类 POST 继续要求同源 JSON，防止 CSRF；
+- 反向代理（Nginx）只需转发 `Host` 和 `X-Forwarded-Proto`，**不要**再注入内部令牌、隐藏 `Set-Cookie`
+  或额外加 `auth_basic`，否则会先弹出浏览器基本认证框，看不到自定义登录页；
+- 本机 `127.0.0.1` 访问且未配置令牌时，仍直接进入面板。
+
 ## Chrome 自动检测与一键下载（可选）
 
 - **自动检测**：`python -m pdd_cs chrome --status`，或在面板「店铺与登录 → 运行环境」查看；

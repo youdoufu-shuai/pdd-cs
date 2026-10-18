@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="robots" content="noindex, nofollow"/>
+<title>安全登录 · 拼多多智能客服</title>
+<style>
+  :root{
+    --navy:#0a1a33; --navy-2:#0f2a4d; --ink:#13253f; --muted:#64748b;
+    --blue:#2563eb; --teal:#0d9488; --violet:#7c3aed; --amber:#d97706;
+    --line:#e2e8f0; --card:#ffffff;
+    --shadow:0 28px 70px rgba(6,20,45,.38), 0 2px 8px rgba(6,20,45,.16);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--navy); color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased; padding:32px 18px; overflow-x:hidden;
+  }
+  /* 背景：深海蓝 + 蓝绿紫光晕 + 细网格 */
+  .bg{position:fixed; inset:0; overflow:hidden; pointer-events:none;
+    background:
+      radial-gradient(1100px 620px at 12% -6%, rgba(37,99,235,.34), transparent 62%),
+      radial-gradient(900px 560px at 96% 8%, rgba(13,148,136,.26), transparent 60%),
+      radial-gradient(760px 620px at 78% 108%, rgba(124,58,237,.20), transparent 64%),
+      linear-gradient(160deg,#081528 0%,#0b1f3a 48%,#0a1a33 100%);
+  }
+  .bg::before{content:""; position:absolute; inset:0;
+    background-image:linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+                     linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size:64px 64px; mask-image:radial-gradient(ellipse at 50% 40%, #000 15%, transparent 72%);
+    -webkit-mask-image:radial-gradient(ellipse at 50% 40%, #000 15%, transparent 72%);
+  }
+  .orb{position:absolute; border-radius:50%; filter:blur(48px); opacity:.5; animation:drift 18s ease-in-out infinite alternate}
+  .orb-a{width:420px; height:420px; left:-120px; top:-90px; background:rgba(37,99,235,.55)}
+  .orb-b{width:360px; height:360px; right:-80px; top:18%; background:rgba(13,148,136,.45); animation-delay:-6s}
+  .orb-c{width:300px; height:300px; left:22%; bottom:-160px; background:rgba(124,58,237,.42); animation-delay:-11s}
+  @keyframes drift{from{transform:translate3d(0,0,0) scale(1)} to{transform:translate3d(18px,-22px,0) scale(1.08)}}
+
+  .shell{position:relative; z-index:1; width:100%; max-width:460px}
+  .card{
+    position:relative; background:linear-gradient(180deg,#fff 0%,#fbfdff 100%);
+    border:1px solid rgba(255,255,255,.65); border-radius:22px; box-shadow:var(--shadow);
+    padding:34px 34px 26px; overflow:hidden;
+  }
+  .card::before{content:""; position:absolute; inset:0 0 auto 0; height:5px;
+    background:linear-gradient(90deg,var(--blue),var(--teal) 45%,var(--violet) 78%,var(--amber));}
+  .card::after{content:""; position:absolute; right:-90px; top:-90px; width:220px; height:220px; border-radius:50%;
+    background:radial-gradient(circle, rgba(37,99,235,.08), transparent 68%); pointer-events:none}
+
+  .brand{display:flex; align-items:center; gap:12px; margin-bottom:26px}
+  .mark{width:46px; height:46px; border-radius:13px; flex:none; display:grid; place-items:center;
+    color:#fff; font-size:23px; font-weight:800; letter-spacing:0;
+    background:linear-gradient(145deg,#2563eb,#0d9488 92%);
+    box-shadow:0 8px 20px rgba(37,99,235,.28), inset 0 1px 0 rgba(255,255,255,.28);}
+  .brand-name{font-size:15.5px; font-weight:700; letter-spacing:.2px}
+  .brand-sub{font-size:11.5px; color:var(--muted); margin-top:3px; letter-spacing:.4px}
+  .badge{margin-left:auto; font-size:10.5px; color:#0f766e; background:#ecfdf5; border:1px solid #a7f3d0;
+    border-radius:999px; padding:4px 9px; white-space:nowrap; display:inline-flex; align-items:center; gap:5px}
+  .badge::before{content:""; width:5px; height:5px; border-radius:50%; background:#10b981}
+
+  h1{font-size:26px; line-height:1.25; margin:0 0 8px; letter-spacing:.2px; font-weight:750}
+  .lead{margin:0 0 22px; color:var(--muted); font-size:13px; line-height:1.7}
+  .field{display:block; margin:0 0 14px}
+  .label{display:block; font-size:12px; color:#475569; margin-bottom:7px; font-weight:600; letter-spacing:.2px}
+  .input-wrap{position:relative; display:flex; align-items:center}
+  .input-wrap .lock{position:absolute; left:13px; width:17px; height:17px; color:#94a3b8; pointer-events:none}
+  input[type=password],input[type=text]{
+    width:100%; height:46px; border:1px solid var(--line); border-radius:11px; background:#f8fafc;
+    padding:0 74px 0 40px; font-size:14px; color:var(--ink); outline:none; letter-spacing:.3px;
+    transition:border-color .16s, box-shadow .16s, background .16s;
+  }
+  input::placeholder{color:#a3b0c2; letter-spacing:0}
+  input:focus{border-color:#2563eb; background:#fff; box-shadow:0 0 0 4px rgba(37,99,235,.11)}
+  .reveal{position:absolute; right:7px; height:32px; min-width:52px; border:0; border-radius:8px;
+    background:transparent; color:#64748b; font-size:12px; cursor:pointer; padding:0 9px}
+  .reveal:hover{background:#eef2f7; color:#334155}
+  .reveal:focus-visible{outline:2px solid #93c5fd; outline-offset:1px}
+
+  .error{display:flex; align-items:flex-start; gap:8px; background:#fff1f2; border:1px solid #fecdd3;
+    color:#9f1239; border-radius:9px; padding:9px 11px; font-size:12.5px; line-height:1.55; margin:2px 0 13px}
+  .error .ico{width:16px; height:16px; border-radius:50%; background:#e11d48; color:#fff; flex:none;
+    display:grid; place-items:center; font-size:11px; font-weight:800; margin-top:1px}
+  .error[hidden]{display:none}
+  .shake{animation:shake .34s ease}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+
+  .submit{
+    width:100%; height:48px; border:0; border-radius:11px; cursor:pointer; color:#fff;
+    font-size:14px; font-weight:650; letter-spacing:.6px; display:flex; align-items:center; justify-content:center; gap:9px;
+    background:linear-gradient(135deg,#1d4ed8,#2563eb 55%,#0d9488 140%);
+    box-shadow:0 10px 22px rgba(37,99,235,.26), inset 0 1px 0 rgba(255,255,255,.22);
+    transition:transform .12s, box-shadow .16s, filter .16s;
+  }
+  .submit:hover{filter:brightness(1.04); box-shadow:0 13px 26px rgba(37,99,235,.32)}
+  .submit:active{transform:translateY(1px)}
+  .submit:disabled{cursor:not-allowed; filter:grayscale(.12) brightness(.97)}
+  .submit svg{width:16px; height:16px; transition:transform .16s}
+  .submit:hover svg{transform:translateX(2px)}
+  .submit .spinner{display:none; width:17px; height:17px; border:2px solid rgba(255,255,255,.35);
+    border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite}
+  .submit.loading .spinner{display:block}
+  .submit.loading svg{display:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .chips{display:flex; gap:7px; justify-content:center; margin:16px 0 0; flex-wrap:wrap}
+  .chips span{font-size:11px; color:#526176; background:#f1f5f9; border:1px solid #e7edf4;
+    border-radius:999px; padding:4px 10px; letter-spacing:.2px}
+  .hint{margin:18px 0 0; padding-top:14px; border-top:1px dashed #e5ebf3;
+    color:#8795a8; font-size:11px; line-height:1.7; text-align:center}
+  .hint code{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; color:#526176;
+    background:#f1f5f9; border-radius:4px; padding:1px 4px}
+
+  .foot{display:flex; align-items:center; justify-content:center; gap:8px; margin-top:18px;
+    color:rgba(226,238,255,.62); font-size:11px; letter-spacing:.2px; flex-wrap:wrap}
+  .foot .dot{opacity:.5}
+  .foot a{color:rgba(226,238,255,.72); text-decoration:none; border-bottom:1px dotted rgba(226,238,255,.28)}
+  .foot a:hover{color:#fff}
+
+  @media (max-width:480px){
+    body{padding:18px 12px; align-items:flex-start}
+    .card{padding:26px 21px 22px; border-radius:18px; margin-top:8vh}
+    h1{font-size:23px}
+    .brand-name{font-size:14px}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation:none !important; transition:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true">
+  <span class="orb orb-a"></span><span class="orb orb-b"></span><span class="orb orb-c"></span>
+</div>
+
+<main class="shell">
+  <section class="card" aria-labelledby="login-title">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">拼</div>
+      <div>
+        <div class="brand-name">拼多多智能客服</div>
+        <div class="brand-sub">运行中心 · 私有部署</div>
+      </div>
+      <span class="badge">安全访问</span>
+    </div>
+
+    <h1 id="login-title">欢迎回来</h1>
+    <p class="lead">输入服务器访问令牌，进入多店铺客服控制台。</p>
+
+    <form id="login-form" novalidate>
+      <label class="field" for="token">
+        <span class="label">访问令牌</span>
+        <span class="input-wrap">
+          <svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <rect x="4" y="10" width="16" height="11" rx="2.4"></rect>
+            <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+            <circle cx="12" cy="15.5" r="1.3" fill="currentColor" stroke="none"></circle>
+          </svg>
+          <input id="token" name="token" type="password" autocomplete="current-password"
+                 placeholder="请输入服务器访问令牌" spellcheck="false" autocapitalize="off" required autofocus/>
+          <button type="button" class="reveal" id="reveal" aria-label="显示令牌">显示</button>
+        </span>
+      </label>
+
+      <div class="error" id="error" role="alert" hidden>
+        <span class="ico" aria-hidden="true">!</span><span id="error-text"></span>
+      </div>
+
+      <button class="submit" id="submit" type="submit">
+        <span class="spinner" aria-hidden="true"></span>
+        <span id="submit-label">进入控制台</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M5 12h13M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </button>
+    </form>
+
+    <div class="chips" aria-hidden="true">
+      <span>多店铺管理</span><span>平台合规拦截</span><span>实时会话面板</span>
+    </div>
+
+    <p class="hint">
+      令牌保存在服务器 <code>/etc/pdd-cs.env</code> 或 <code>/opt/pdd-cs/access-credentials.txt</code>；<br/>
+      登录状态仅保存在浏览器 HttpOnly Cookie，不会写进网址或本地存储。
+    </p>
+  </section>
+
+  <footer class="foot">
+    <span id="hostname">—</span>
+    <span class="dot">·</span>
+    <span>pdd-cs v{{VERSION}}</span>
+    <span class="dot">·</span>
+    <a href="healthz" target="_blank" rel="noopener">服务状态</a>
+  </footer>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var form = document.getElementById('login-form');
+  var input = document.getElementById('token');
+  var button = document.getElementById('submit');
+  var label = document.getElementById('submit-label');
+  var errorBox = document.getElementById('error');
+  var errorText = document.getElementById('error-text');
+  var reveal = document.getElementById('reveal');
+  var host = document.getElementById('hostname');
+  if (host) host.textContent = location.host || '本机面板';
+
+  function showError(message) {
+    errorText.textContent = message;
+    errorBox.hidden = false;
+    var card = document.querySelector('.card');
+    if (card) {
+      card.classList.remove('shake');
+      void card.offsetWidth;
+      card.classList.add('shake');
+    }
+  }
+  function clearError() { errorBox.hidden = true; errorText.textContent = ''; }
+
+  reveal.addEventListener('click', function () {
+    var visible = input.type === 'text';
+    input.type = visible ? 'password' : 'text';
+    reveal.textContent = visible ? '显示' : '隐藏';
+    reveal.setAttribute('aria-label', visible ? '显示令牌' : '隐藏令牌');
+    input.focus();
+  });
+
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    var token = input.value.trim();
+    if (!token) { showError('请输入访问令牌'); input.focus(); return; }
+    clearError();
+    button.disabled = true;
+    button.classList.add('loading');
+    label.textContent = '正在验证…';
+    try {
+      var response = await fetch('api/auth/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({token: token})
+      });
+      var data = {};
+      try { data = await response.json(); } catch (e) { data = {}; }
+      if (response.ok && data.ok) {
+        label.textContent = '登录成功，正在进入…';
+        location.replace(location.pathname || '/');
+        return;
+      }
+      if (response.status === 429) {
+        showError(data.message || '尝试次数过多，请稍后再试');
+      } else if (response.status === 401) {
+        showError(data.message || '访问令牌不正确，请检查后重试');
+      } else if (response.status === 403) {
+        showError('登录请求被拒绝，请通过正式的 HTTPS 地址访问');
+      } else {
+        showError(data.message || ('登录失败（HTTP ' + response.status + '）'));
+      }
+    } catch (error) {
+      showError('无法连接服务器，请检查网络或稍后重试');
+    } finally {
+      button.disabled = false;
+      button.classList.remove('loading');
+      label.textContent = '进入控制台';
+    }
+  });
+
+  // 已经登录但停留在旧页面时，自动进入控制台
+  fetch('api/status', {cache: 'no-store', credentials: 'same-origin'})
+    .then(function (response) { if (response.ok) location.replace(location.pathname || '/'); })
+    .catch(function () {});
+})();
+</script>
+</body>
+</html>

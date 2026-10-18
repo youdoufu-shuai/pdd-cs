@@ -26,11 +26,13 @@ import hmac
 import json
 import logging
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import parse_qs, urlparse
 
+from . import __version__
 from .config import Config
 from .engine.service import PDDAutoReplyService
 from .web_admin import (
@@ -77,6 +79,61 @@ def _load_page() -> str:
 
 
 PAGE_HTML = _load_page()
+
+_LOGIN_PAGE_PATH = _WEB_DIR / "login.html"
+_LOGIN_FALLBACK = (
+    "<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'>"
+    "<title>登录 · 拼多多智能客服</title></head>"
+    "<body style='font-family:Sans-Serif;background:#0a1a33;color:#fff;display:grid;"
+    "place-items:center;height:100vh;margin:0'><div><h1>安全登录</h1>"
+    "<p>登录页文件缺失，请检查 pdd_cs/web/login.html。</p></div></body></html>"
+)
+
+
+def _load_login_page() -> str:
+    try:
+        html = _LOGIN_PAGE_PATH.read_text(encoding="utf-8")
+    except OSError as exc:  # pragma: no cover
+        logger.error("读取登录页面失败: %s", exc)
+        return _LOGIN_FALLBACK
+    return html.replace("{{VERSION}}", __version__)
+
+
+LOGIN_HTML = _load_login_page()
+
+#: 登录失败限速（内存；服务重启后清零）
+_LOGIN_MAX_FAILURES = 8
+_LOGIN_WINDOW_SECONDS = 300
+_LOGIN_LOCK = threading.Lock()
+_LOGIN_FAILURES: dict[str, list[float]] = {}
+
+
+def _normalized_origin(value: str) -> tuple[str, str, int] | None:
+    """解析一个 HTTP Origin，拒绝 Origin 不允许携带的路径/参数等。"""
+    if not value or "?" in value or "#" in value or any(char.isspace() for char in value):
+        return None
+    try:
+        parsed = urlparse(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+            or parsed.netloc.endswith(":")
+        ):
+            return None
+        port = parsed.port
+        return (
+            parsed.scheme,
+            parsed.hostname.lower(),
+            port if port is not None else (443 if parsed.scheme == "https" else 80),
+        )
+    except ValueError:
+        return None
 
 
 class DashboardServer:
@@ -130,16 +187,20 @@ class DashboardServer:
         auth_token = (config.server.auth_token or "").strip()
 
         class Handler(BaseHTTPRequestHandler):
-            server_version = "pdd-cs/1.6"
+            server_version = "pdd-cs/1.7"
 
             def log_message(self, fmt: str, *args) -> None:  # noqa: A003
                 logger.debug("dashboard: " + fmt, *args)
 
-            def _send_json(self, payload: Any, status: int = 200) -> None:
+            def _send_json(
+                self, payload: Any, status: int = 200, headers: list | None = None
+            ) -> None:
                 body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
+                for name, value in headers or []:
+                    self.send_header(name, value)
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -154,6 +215,80 @@ class DashboardServer:
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+
+            def _cookie_header(self, token: str) -> str:
+                secure = (
+                    "; Secure"
+                    if (self.headers.get("X-Forwarded-Proto") or "").strip().lower() == "https"
+                    else ""
+                )
+                return (
+                    f"pdd_cs_token={token}; Path=/; HttpOnly; SameSite=Lax; "
+                    f"Max-Age=31536000{secure}"
+                )
+
+            def _clear_cookie_header(self) -> str:
+                secure = (
+                    "; Secure"
+                    if (self.headers.get("X-Forwarded-Proto") or "").strip().lower() == "https"
+                    else ""
+                )
+                return f"pdd_cs_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{secure}"
+
+            def _serve_login(self) -> None:
+                self._send_html(
+                    LOGIN_HTML,
+                    headers=[
+                        ("X-Frame-Options", "DENY"),
+                        ("X-Content-Type-Options", "nosniff"),
+                        ("Referrer-Policy", "no-referrer"),
+                        (
+                            "Content-Security-Policy",
+                            "default-src 'self'; style-src 'unsafe-inline'; "
+                            "script-src 'unsafe-inline'; img-src 'self' data:; "
+                            "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'",
+                        ),
+                    ],
+                )
+
+            def _client_ip(self) -> str:
+                ip = (self.headers.get("X-Real-IP") or "").strip()
+                if not ip:
+                    ip = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+                return ip or (self.client_address[0] if self.client_address else "unknown")
+
+            def _login_state(self) -> tuple[str, int, int]:
+                now = time.monotonic()
+                ip = self._client_ip()
+                with _LOGIN_LOCK:
+                    times = [
+                        item
+                        for item in _LOGIN_FAILURES.get(ip, [])
+                        if now - item < _LOGIN_WINDOW_SECONDS
+                    ]
+                    if times:
+                        _LOGIN_FAILURES[ip] = times
+                    else:
+                        _LOGIN_FAILURES.pop(ip, None)
+                    retry = 0
+                    if len(times) >= _LOGIN_MAX_FAILURES:
+                        retry = max(1, int(_LOGIN_WINDOW_SECONDS - (now - min(times)) + 0.999))
+                    return ip, len(times), retry
+
+            def _record_login_failure(self, ip: str) -> None:
+                now = time.monotonic()
+                with _LOGIN_LOCK:
+                    times = [
+                        item
+                        for item in _LOGIN_FAILURES.get(ip, [])
+                        if now - item < _LOGIN_WINDOW_SECONDS
+                    ]
+                    times.append(now)
+                    _LOGIN_FAILURES[ip] = times
+
+            def _clear_login_failures(self, ip: str) -> None:
+                with _LOGIN_LOCK:
+                    _LOGIN_FAILURES.pop(ip, None)
 
             def _token_ok(self, query: dict[str, list[str]]) -> bool:
                 if not auth_token:
@@ -174,7 +309,7 @@ class DashboardServer:
                     self._send_json(
                         {
                             "error": "unauthorized",
-                            "message": "需要访问令牌：在地址后加 ?token=...，或使用 X-Auth-Token 请求头",
+                            "message": "需要登录：请打开面板登录页输入访问令牌，或使用 X-Auth-Token 请求头",
                         },
                         status=401,
                     )
@@ -201,6 +336,84 @@ class DashboardServer:
                     return data if isinstance(data, dict) else {}
                 except (ValueError, json.JSONDecodeError):
                     return {}
+
+            def _discard_post_body(self) -> None:
+                """拒绝请求时安全排空请求体，避免连接被重置。"""
+                self.close_connection = True
+                previous_timeout = self.connection.gettimeout()
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                    if 0 < length <= 128 * 1024:
+                        self.connection.settimeout(1.0)
+                        self.rfile.read(length)
+                except (ValueError, OSError):
+                    pass
+                finally:
+                    try:
+                        self.connection.settimeout(previous_timeout)
+                    except OSError:
+                        pass
+
+            def _post_origin_ok(self) -> bool:
+                # 反向代理的访问凭据也是浏览器的隐式权限，必须阻止跨站 POST。
+                if (self.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site":
+                    return False
+                origin = self.headers.get("Origin")
+                if origin is None:
+                    return True  # 非浏览器 JSON 客户端不发送 Origin。
+                scheme = (self.headers.get("X-Forwarded-Proto") or "http").strip().lower()
+                host = (self.headers.get("Host") or "").strip()
+                expected = _normalized_origin(f"{scheme}://{host}")
+                supplied = _normalized_origin(origin)
+                return expected is not None and supplied == expected
+
+            def _handle_login(self) -> None:
+                ip, failures, retry = self._login_state()
+                if retry:
+                    self._discard_post_body()
+                    self._send_json(
+                        {
+                            "error": "too_many_attempts",
+                            "message": f"尝试次数过多，请 {retry} 秒后再试",
+                        },
+                        status=429,
+                        headers=[("Retry-After", str(retry))],
+                    )
+                    return
+                media_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+                if media_type != "application/json":
+                    self._discard_post_body()
+                    self._send_json(
+                        {"error": "unsupported_media_type", "message": "登录请求必须是 JSON"},
+                        status=415,
+                    )
+                    return
+                if not self._post_origin_ok():
+                    self._discard_post_body()
+                    self._send_json(
+                        {"error": "cross_origin", "message": "跨站登录请求已拒绝"},
+                        status=403,
+                    )
+                    return
+                data = self._read_json()
+                supplied = str(data.get("token") or "").strip()
+                if not auth_token:
+                    self._send_json({"ok": True, "auth_required": False})
+                    return
+                if supplied and hmac.compare_digest(supplied, auth_token):
+                    self._clear_login_failures(ip)
+                    logger.info("dashboard: 登录成功 ip=%s", ip)
+                    self._send_json(
+                        {"ok": True, "auth_required": True},
+                        headers=[("Set-Cookie", self._cookie_header(auth_token))],
+                    )
+                    return
+                self._record_login_failure(ip)
+                logger.warning("dashboard: 登录失败 ip=%s attempts=%s", ip, failures + 1)
+                self._send_json(
+                    {"error": "invalid_token", "message": "访问令牌不正确，请检查后重试"},
+                    status=401,
+                )
 
             @staticmethod
             def _shop(query: dict[str, list[str]]) -> Optional[str]:
@@ -246,7 +459,10 @@ class DashboardServer:
                 shop = self._shop(query)
 
                 if path != "/healthz" and not self._token_ok(query):
-                    self._reject()
+                    if path in {"/", ""}:
+                        self._serve_login()
+                    else:
+                        self._reject()
                     return
 
                 if path == "/":
@@ -451,15 +667,25 @@ class DashboardServer:
                 parsed = urlparse(self.path)
                 path = parsed.path.rstrip("/") or "/"
                 query = parse_qs(parsed.query)
+                if path == "/api/auth/login":
+                    self._handle_login()
+                    return
                 if not self._token_ok(query):
-                    # 先读完请求体，避免客户端收到 connection aborted
-                    try:
-                        length = int(self.headers.get("Content-Length") or 0)
-                        if length:
-                            self.rfile.read(length)
-                    except (ValueError, OSError):
-                        pass
+                    self._discard_post_body()
                     self._reject()
+                    return
+                media_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+                if media_type != "application/json":
+                    self._discard_post_body()
+                    self._send_json(
+                        {"error": "POST requests require application/json"}, status=415
+                    )
+                    return
+                if not self._post_origin_ok():
+                    self._discard_post_body()
+                    self._send_json(
+                        {"error": "Cross-origin POST requests are not allowed"}, status=403
+                    )
                     return
                 data = self._read_json()
                 try:
@@ -471,6 +697,12 @@ class DashboardServer:
                     self._send_json({"error": f"操作失败：{exc}"}, status=500)
 
             def _dispatch_post(self, path: str, data: dict) -> None:
+                if path == "/api/auth/logout":
+                    self._send_json(
+                        {"ok": True},
+                        headers=[("Set-Cookie", self._clear_cookie_header())],
+                    )
+                    return
                 if path == "/api/simulate":
                     text = str(data.get("text") or "").strip()
                     if not text:
@@ -592,4 +824,4 @@ def _int(value: str, default: int) -> int:
         return default
 
 
-__all__ = ["DashboardServer", "PAGE_HTML"]
+__all__ = ["DashboardServer", "PAGE_HTML", "LOGIN_HTML"]
