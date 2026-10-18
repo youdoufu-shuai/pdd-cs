@@ -202,7 +202,15 @@ class AIReplyGenerator:
                 top_k=self.config.knowledge.top_k,
                 min_score=self.config.knowledge.min_score,
             )
-        system_prompt = self._build_system_prompt(snippets, handoff_hint=handoff_hint)
+        include_catalog = bool(
+            re.search(
+                r"商品|产品|哪款|推荐|链接|价格|多少钱|尺码|颜色|库存|有货|背心|保暖|马甲|款式|规格",
+                question or "",
+            )
+        )
+        system_prompt = self._build_system_prompt(
+            snippets, handoff_hint=handoff_hint, include_catalog=include_catalog
+        )
         messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
 
         max_history = max(0, self.config.llm.max_history_messages)
@@ -229,11 +237,29 @@ class AIReplyGenerator:
         return self._sanitize(content)
 
     # ------------------------------------------------------------------
-    def _build_system_prompt(self, snippets: list[KnowledgeSnippet], *, handoff_hint: bool) -> str:
+    def _build_system_prompt(
+        self,
+        snippets: list[KnowledgeSnippet],
+        *,
+        handoff_hint: bool,
+        include_catalog: bool = False,
+    ) -> str:
         persona = self.config.persona.strip()
         parts: list[str] = [HARD_RULES]
         if persona:
             parts.append("【店铺人设与话术风格】\n" + persona)
+        if include_catalog:
+            catalog = self._product_catalog()
+            if catalog:
+                parts.append(
+                    "【店铺商品目录（客户问商品/推荐/价格/规格时必须使用这里的信息）】\n"
+                    "规则：\n"
+                    "1. 只推荐目录里真实存在的商品，不要编造商品名、价格、库存或链接。\n"
+                    "2. 客户问某个商品时，先给 1 款最匹配的：商品名 + 价格口径 + 1-2 个卖点 + 商品链接。\n"
+                    "3. 商品链接必须原样使用目录里的链接，不要改写；不要给站外链接。\n"
+                    "4. 一次只推 1 款，客户明确要更多再列第 2 款。\n\n"
+                    + catalog
+                )
         if snippets:
             parts.append("【知识库（只使用与问题直接相关的内容，不要逐字照抄）】\n" + self._format_snippets(snippets))
         else:
@@ -251,12 +277,31 @@ class AIReplyGenerator:
             s.to_prompt_block(self.config.knowledge.max_chars_per_snippet) for s in snippets
         )
 
+    def _product_catalog(self) -> str:
+        """读取商品目录；目录不存在时返回空，不编造商品。"""
+        path = self.config.knowledge.dir / "product-catalog.md"
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+        return truncate(text, 6000)
+
     def _sanitize(self, text: str) -> str:
-        """清洗模型输出：去 Markdown、去链接、限长。"""
+        """清洗模型输出：去 Markdown、去站外链接，保留拼多多商品链接。"""
         cleaned = (text or "").strip()
+        # 商品链接是平台内页面，不属于站外导流；先保护再清理 Markdown/其他 URL
+        allowed = re.findall(
+            r"https?://(?:(?:mobile\.)?yangkeduo\.com|(?:mobile\.)?pinduoduo\.com)/"
+            r"goods(?:\.html|2\.html)?\?goods_id=\d+",
+            cleaned,
+        )
+        for index, url in enumerate(allowed):
+            cleaned = cleaned.replace(url, f"PDDLINKPLACEHOLDER{index}TOKEN")
         cleaned = re.sub(r"```.*?```", "", cleaned, flags=re.S)
         cleaned = re.sub(r"[*_#>`]+", "", cleaned)
         cleaned = re.sub(r"https?://\S+", "", cleaned)
+        for index, url in enumerate(allowed):
+            cleaned = cleaned.replace(f"PDDLINKPLACEHOLDER{index}TOKEN", url)
         cleaned = re.sub(r"^\s*(回复|回答|客服)[:：]\s*", "", cleaned)
         cleaned = re.sub(r"[ \t]+", " ", cleaned)
         cleaned = cleaned.strip(" \n\"'“”")

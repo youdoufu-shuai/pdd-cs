@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """平台规则合规层测试。"""
 from __future__ import annotations
 
@@ -33,6 +33,19 @@ def test_offsite_cannot_bypass(guard):
     """即使改写后仍无法消除导流，也允许发送（平台内沟通），但不能带联系方式。"""
     enforced = guard.enforce("加我微信 abcdef123")
     assert "微信" not in enforced.text or "平台" in enforced.text
+
+
+def test_pdd_product_link_allowed(guard):
+    link = "https://mobile.yangkeduo.com/goods.html?goods_id=1016239261096"
+    result = guard.check_outbound(f"这款保暖背心可以看这里：{link}")
+    assert not any(v.category == "offsite" for v in result.violations)
+    enforced = guard.enforce(f"这款保暖背心可以看这里：{link}")
+    assert link in enforced.text
+
+
+def test_external_link_still_removed(guard):
+    enforced = guard.enforce("看这个 https://evil.example.com/x")
+    assert "evil.example.com" not in enforced.text
 
 
 def test_promise_delivery_blocked_and_fallback(guard):

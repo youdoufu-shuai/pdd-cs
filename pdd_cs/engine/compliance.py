@@ -43,6 +43,30 @@ from ..utils import contains_contact, max_similarity, similarity, truncate
 
 logger = logging.getLogger("pdd_cs.compliance")
 
+# 平台内商品链接：不是站外导流，允许出现在商品介绍里
+_PDD_PRODUCT_LINK_RE = re.compile(
+    r"https?://(?:(?:mobile\.)?yangkeduo\.com|(?:mobile\.)?pinduoduo\.com)/"
+    r"goods(?:\.html|2\.html)?\?goods_id=\d+"
+)
+_PDD_LINK_PLACEHOLDER = "__PDD_GOODS_LINK_"
+
+
+def _mask_pdd_product_links(text: str) -> tuple[str, list[str]]:
+    links: list[str] = []
+
+    def repl(match: re.Match[str]) -> str:
+        links.append(match.group(0))
+        return f"{_PDD_LINK_PLACEHOLDER}{len(links) - 1}__"
+
+    return _PDD_PRODUCT_LINK_RE.sub(repl, text), links
+
+
+def _restore_pdd_product_links(text: str, links: list[str]) -> str:
+    for index, link in enumerate(links):
+        text = text.replace(f"{_PDD_LINK_PLACEHOLDER}{index}__", link)
+    return text
+
+
 # 语音 / 图片等非文本消息不参与关键词匹配，但这里保留常量便于扩展
 _SEVERITY_BLOCK = "block"
 _SEVERITY_REWRITE = "rewrite"
@@ -207,9 +231,10 @@ class ComplianceGuard:
             )
             return result
 
-        # 1) 站外导流
+        # 1) 站外导流；平台内商品链接先遮蔽，避免误判为站外链接
+        scan_text, _links = _mask_pdd_product_links(text)
         for pattern in self.offsite:
-            matched = _match(pattern.pattern, text, pattern.match)
+            matched = _match(pattern.pattern, scan_text, pattern.match)
             if matched:
                 result.violations.append(
                     Violation(
@@ -220,12 +245,12 @@ class ComplianceGuard:
                         pattern.suggestion,
                     )
                 )
-        if contains_contact(text):
+        if contains_contact(scan_text):
             result.violations.append(
                 Violation(
                     "offsite",
                     _SEVERITY_REWRITE,
-                    _first_contact(text),
+                    _first_contact(scan_text),
                     "检测到手机号 / 网址 / 站外联系方式；平台禁止导流站外",
                     "改为在平台内沟通",
                 )
@@ -596,12 +621,13 @@ def _first_contact(text: str) -> str:
 
 
 def _strip_contact(text: str) -> str:
-    out = re.sub(r"https?://\S+", "", text)
+    masked, links = _mask_pdd_product_links(text)
+    out = re.sub(r"https?://\S+", "", masked)
     out = re.sub(r"www\.\S+", "", out)
     out = re.sub(r"(?<!\d)1[3-9]\d{9}(?!\d)", "", out)
     out = re.sub(r"(微信|weixin|wechat|vx|v信|qq|QQ|加V|加v|加微)\s*[:：]?\s*[A-Za-z0-9_\-]{4,}", "", out)
     out = re.sub(r"\s{2,}", " ", out).strip(" ，,。.；;")
-    return out
+    return _restore_pdd_product_links(out, links)
 
 
 _RUDE_PATTERNS = [
