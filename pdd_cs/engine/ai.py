@@ -234,7 +234,8 @@ class AIReplyGenerator:
         except LLMError as exc:
             logger.warning("AI 回复失败: %s", exc)
             return None
-        return self._sanitize(content)
+        cleaned = self._sanitize(content)
+        return self._ensure_product_link(cleaned, question=question, history=recent)
 
     # ------------------------------------------------------------------
     def _build_system_prompt(
@@ -285,6 +286,67 @@ class AIReplyGenerator:
         except OSError:
             return ""
         return truncate(text, 6000)
+
+    def _product_entries(self) -> list[dict[str, str]]:
+        """从商品目录 Markdown 解析商品名和商品地址。"""
+        catalog = self._product_catalog()
+        if not catalog:
+            return []
+        entries: list[dict[str, str]] = []
+        for block in re.split(r"\n##\s*商品[：:]", catalog)[1:]:
+            lines = [line.strip() for line in block.splitlines() if line.strip()]
+            if not lines:
+                continue
+            name = lines[0].strip()
+            if not name:
+                continue
+            link = ""
+            for line in lines[1:]:
+                matched = re.search(r"https?://\S+goods_id=\d+", line)
+                if matched:
+                    link = matched.group(0)
+                    break
+            if link:
+                entries.append({"name": name, "link": link})
+        return entries
+
+    def _ensure_product_link(
+        self, content: str, *, question: str, history: Iterable[dict[str, Any]]
+    ) -> str:
+        """AI 有时会忽略商品链接；在商品类回复末尾确定性地补上对应链接。"""
+        text = (content or "").strip()
+        if not text or re.search(r"https?://\S+goods_id=\d+", text):
+            return text
+        product_terms = ("背心", "马甲", "保暖", "羊羔绒", "抗菌", "贴片", "坎肩", "打底")
+        trigger = any(term in text or term in (question or "") for term in product_terms)
+        if not trigger:
+            return text
+        history_text = " ".join(
+            str(item.get("content") or "") for item in list(history)[-4:] if isinstance(item, dict)
+        )
+        context = " ".join(filter(None, [question, text, history_text]))
+        entries = self._product_entries()
+        if not entries:
+            return text
+        best = None
+        best_score = 0
+        for entry in entries:
+            score = sum(1 for term in product_terms if term in entry["name"] and term in context)
+            # 商品名中的关键人群也参与匹配，避免男女款推错
+            score += sum(1 for term in ("男士", "女士", "妈妈") if term in entry["name"] and term in context)
+            if score > best_score:
+                best, best_score = entry, score
+        if not best:
+            return text
+        link = best["link"]
+        limit = max(0, int(self.config.behavior.max_reply_chars))
+        if limit:
+            room = limit - len(link) - 1
+            if room <= 0:
+                return link
+            if len(text) > room:
+                text = truncate(text, room)
+        return f"{text.rstrip()}\n{link}"
 
     def _sanitize(self, text: str) -> str:
         """清洗模型输出：去 Markdown、去站外链接，保留拼多多商品链接。"""
