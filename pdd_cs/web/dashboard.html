@@ -413,7 +413,9 @@
       </section>
 
       <section class="card" id="detail-card" data-tone="violet" style="display:none">
-        <div class="card-head"><h3 id="detail-title">会话详情</h3><span class="meta" id="detail-meta"></span></div>
+        <div class="card-head"><h3 id="detail-title">会话详情</h3><span class="meta" id="detail-meta"></span>
+          <button class="ghost small" id="resume-ai-btn" style="margin-left:auto">恢复 AI 接管</button>
+        </div>
         <div class="msg-list" id="detail-messages"></div>
       </section>
 
@@ -1115,7 +1117,10 @@ function renderConversations(list){
   });
 }
 
+let currentConversation = null;
+
 async function openConversation(shop, uid, name){
+  currentConversation = {shop: shop, uid: uid, name: name};
   $('detail-card').style.display = '';
   $('detail-title').textContent = '会话详情 · ' + (name || uid);
   $('detail-meta').textContent = shopName(shop) + ' · ' + uid;
@@ -1130,6 +1135,21 @@ async function openConversation(shop, uid, name){
     }).join('');
   }catch(e){ $('detail-messages').innerHTML = '<div class="empty">加载失败：' + esc(e) + '</div>'; }
 }
+
+$('resume-ai-btn')?.addEventListener('click', async () => {
+  if(!currentConversation) return;
+  const btn = $('resume-ai-btn');
+  btn.disabled = true; btn.textContent = '正在恢复…';
+  try{
+    const payload = {uid: currentConversation.uid};
+    if(currentConversation.shop && currentConversation.shop !== 'all') payload.shop = currentConversation.shop;
+    const data = await apiPost('api/human/resume', payload);
+    toast('已恢复 AI 接管，下一条客户消息由 AI 处理');
+    if(data && data.ok) $('detail-meta').textContent = (shopName(currentConversation.shop) + ' · ' + currentConversation.uid + ' · 已恢复 AI');
+    load();
+  }catch(e){ toast('恢复失败：' + e.message, 'err'); }
+  finally{ btn.disabled = false; btn.textContent = '恢复 AI 接管'; }
+});
 
 function renderRisk(list){
   const cols = selectedShop === 'all' ? '86px 118px minmax(0,1fr)' : '86px 118px minmax(0,1fr)';

@@ -429,6 +429,16 @@ class PDDAutoReplyService:
         result["shops"] = self.shop_ids()
         return result
 
+    def resume_ai(self, uid: str, *, shop_id: Optional[str] = None) -> dict[str, Any]:
+        """手动结束人工接管，让该会话下一条客户消息交回 AI。"""
+        worker = self.worker(shop_id)
+        if worker is None:
+            raise ValueError("没有可用的店铺工作单元")
+        if not uid.strip():
+            raise ValueError("缺少客户 uid")
+        worker.resume_ai(uid.strip())
+        return {"ok": True, "shop_id": worker.shop_id, "uid": uid.strip()}
+
     # ------------------------------------------------------------------
     # 状态 / 洞察 / 待处理 / 质检
     # ------------------------------------------------------------------

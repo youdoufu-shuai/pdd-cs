@@ -355,6 +355,12 @@ class ShopWorker:
                 return True
         return False
 
+    def resume_ai(self, uid: str) -> None:
+        """清除某会话的人工接管状态，下一条客户消息重新交给 AI。"""
+        self.store.set_human_takeover(uid, None, shop_id=self.shop_id)
+        self.sla.resume_auto(uid)
+        logger.info("[%s] 已恢复 AI 自动回复：uid=%s", self.shop_id, uid)
+
     # ------------------------------------------------------------------
     # 决策上下文
     # ------------------------------------------------------------------

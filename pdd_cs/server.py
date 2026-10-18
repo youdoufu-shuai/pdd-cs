@@ -736,6 +736,17 @@ class DashboardServer:
                         return
                     self._send_json(service.simulate(text, shop_id=data.get("shop") or None))
                     return
+                if path == "/api/human/resume":
+                    try:
+                        result = service.resume_ai(
+                            str(data.get("uid") or ""),
+                            shop_id=data.get("shop") or data.get("shop_id") or None,
+                        )
+                    except ValueError as exc:
+                        self._send_json({"error": str(exc)}, status=400)
+                        return
+                    self._send_json(result)
+                    return
                 if path == "/api/settings":
                     apply_settings(service.config, data)
                     new_config = Config.load(config_path(service.config))

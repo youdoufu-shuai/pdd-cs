@@ -57,6 +57,23 @@ def test_pending_queue(service):
     assert service.status()["pending_count"] >= 1
 
 
+def test_resume_ai_clears_human_takeover(service):
+    from datetime import timedelta
+
+    from pdd_cs.utils import now_beijing
+
+    service._build_workers()
+    uid = "resume-ai-user"
+    service.store.record_inbound(
+        uid=uid, nickname="等待客户", role="OTHER", context_type="text", content="在吗"
+    )
+    service.store.set_human_takeover(uid, now_beijing() + timedelta(minutes=15))
+    assert service.store.get_human_takeover(uid) is not None
+    result = service.resume_ai(uid)
+    assert result["ok"] is True and result["uid"] == uid
+    assert service.store.get_human_takeover(uid) is None
+
+
 def test_search(service):
     _seed(service)
     assert service.search("小圆")
