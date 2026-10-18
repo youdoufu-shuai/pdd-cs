@@ -257,6 +257,8 @@ def find_chrome(explicit: Optional[str] = None) -> str:
 
     candidates: list[str] = []
     candidates += _env_chrome_candidates()
+    # 优先使用用户通过「一键下载」装到项目内的 Chrome（可覆盖系统旧版本）
+    candidates += _project_chrome_candidates()
 
     if sys.platform.startswith("win"):
         for env_name in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
@@ -298,8 +300,6 @@ def find_chrome(explicit: Optional[str] = None) -> str:
             found = shutil.which(name)
             if found:
                 candidates.append(found)
-
-    candidates += _project_chrome_candidates()
 
     for candidate in candidates:
         if candidate and Path(candidate).exists():
