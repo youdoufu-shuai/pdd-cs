@@ -54,7 +54,7 @@
 | 网页设置中心 | **登录、店铺、AI Key、回复规则、营业时间、告警、话术、知识库全部在浏览器里完成**，终端只负责启动 |
 | 登录态迁移 | 本机扫码/粘贴 Cookie 后「导出登录态」，把登录码/文件带到服务器「导入登录态」即可上线，**服务器不用装 Chrome** |
 | 本地面板 | 商务多彩风格，零前端依赖，`http://127.0.0.1:38617`；新手引导、KPI 色带、多店铺切换、搜索、会话详情、测试台 |
-| 可测试 | 自带拼多多 Mock（HTTP + WS），150 个自动化测试 + 64 项全功能验证，无需真实店铺即可全链路验证 |
+| 可测试 | 自带拼多多 Mock（HTTP + WS），156 个自动化测试 + 65 项全功能验证，无需真实店铺即可全链路验证 |
 
 ## 多店铺与日常运营功能
 
@@ -185,8 +185,24 @@ journalctl -u pdd-cs -f
 - 磁盘：代码+依赖约 100–200 MB，聊天数据库和日志按业务量增长（SQLite 很省）；
 - 长连接只保持心跳和小消息，带宽占用很小；
 - **Chrome 不是运行依赖**：只有「扫码登录」那 1 分钟会启动它，登录完自动关闭；
-  没有 Chrome 也能正常运行：可以在本机登录后「导出登录态」，再到服务器「导入登录态」，
-  或者直接粘贴 Cookie。
+  没有 Chrome 也能正常运行：本机登录后「导出登录态」再到服务器「导入登录态」，或粘贴 Cookie；
+  也可以一键下载 Chrome（见下方「Chrome 自动检测与一键下载」）。
+
+## Chrome 自动检测与一键下载（可选）
+
+- **自动检测**：`python -m pdd_cs chrome --status`，或在面板「店铺与登录 → 运行环境」查看；
+  支持 Chrome / Chromium / Edge，也会自动识别 `PDD_CS_CHROME`、`CHROME_PATH` 指定的路径；
+- **一键下载（免 root）**：`python -m pdd_cs chrome --install`
+  下载 Google 官方 Chrome for Testing 到项目 `data/chrome/`（约 150MB），完成后自动识别；
+  面板里也有「一键下载 Chrome」按钮（带下载进度）；
+- **离线安装**：`PDD_CS_CHROME_ZIP=/path/chrome-linux64.zip python -m pdd_cs chrome --install`，
+  适合内网/下载受限的服务器；也支持 `PDD_CS_CHROME_URL` 指定镜像直链；
+- **Linux 运行库**：Chrome for Testing 需要系统库，Debian/Ubuntu 可先装：
+  `sudo apt-get install -y libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2 libxss1 libxdamage1 libxrandr2 libxcomposite1 libxfixes3`
+  （面板/`chrome --status` 会提示是否启动失败）；
+- **Linux 服务器注意**：Chrome 能装，但如果服务器没有图形界面（`DISPLAY`），仍然无法弹出扫码窗口。
+  这种情况请用「本机登录 → 导出登录态 → 服务器导入」；只有 Windows 桌面/RDP 服务器或配了
+  Xvfb/VNC 的 Linux 才能直接扫码。
 
 ## 快速开始（全部在网页里完成）
 
@@ -255,8 +271,8 @@ pip 安装（不想 clone 时）：`pip install .`，之后可用 `pdd-cs` 命�
 项目自带两套验证，改完配置/话术/代码后建议各跑一遍：
 
 ```bash
-python -m pytest                 # 150 个自动化测试（单元 + 多店铺端到端 + 网页后台 + CLI 子进程）
-python scripts/verify_all.py     # 64 项全功能验证（真起 Mock 拼多多 + 多店铺 + 网页登录/导入/设置 + 面板 + CLI）
+python -m pytest                 # 156 个自动化测试（单元 + 多店铺端到端 + 网页后台 + CLI 子进程）
+python scripts/verify_all.py     # 65 项全功能验证（真起 Mock 拼多多 + 多店铺 + 网页登录/导入/设置 + 面板 + Chrome 检测 + CLI）
 ```
 
 `verify_all.py` 逐项打印 ✅/❌，覆盖：依赖、配置校验、规则匹配、决策链七种分支、
@@ -334,7 +350,7 @@ pdd-cs/
 │   └── __main__.py     # CLI：init/login/run/doctor/simulate/stats/export/lint/qc/alert-test/rules
 ├── config/             # 配置、人设、知识库、规则（可直接改，不用改代码）
 ├── mock/               # 拼多多 Mock 服务（HTTP + WS），用于演示和测试
-├── tests/              # 150 个自动化测试（含多店铺端到端与网页后台）
+├── tests/              # 156 个自动化测试（含多店铺端到端、网页后台、Chrome 安装）
 ├── docs/               # 平台规则、架构、合规矩阵、运营手册、部署指南、小白指南、协议说明
 ├── deploy/             # systemd 服务文件、docker-compose
 ├── Dockerfile          # 生产镜像（含 strict 健康检查）
@@ -342,7 +358,7 @@ pdd-cs/
 ├── start.sh            # macOS / Linux 一键启动
 └── scripts/
     ├── demo.py         # 无需店铺的多店铺一键演示
-    └── verify_all.py   # 64 项全功能验证报告
+    └── verify_all.py   # 65 项全功能验证报告
 ```
 
 ## 数据与隐私

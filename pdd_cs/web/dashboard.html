@@ -446,6 +446,17 @@
             登录态等同于账号密码，请只在自己的设备间传输，导入后删除导出文件。
           </div>
         </section>
+        <section class="card" data-tone="rose">
+          <div class="card-head"><h3>运行环境 · Chrome</h3><span class="meta" id="chrome-state">检测中…</span></div>
+          <div class="settings-section">
+            <div class="help-list" id="chrome-help" style="padding:0">正在检测本机 Chrome…</div>
+            <div class="btn-row" style="margin-top:10px">
+              <button class="ghost small" id="chrome-refresh-btn">重新检测</button>
+              <button class="ghost small" id="chrome-install-btn" style="display:none">一键下载 Chrome</button>
+            </div>
+            <div class="help-list" id="chrome-progress" style="display:none;padding:8px 0 0">—</div>
+          </div>
+        </section>
       </aside>
     </div>
   </div>
@@ -673,7 +684,7 @@
 <div class="toast" id="toast"></div>
 
 <footer>
-  <span>pdd-cs v1.5</span>
+  <span>pdd-cs v1.6</span>
   <span class="sep">|</span>
   <span>接口：<a href="/api/status" target="_blank">status</a> · <a href="/api/pending" target="_blank">pending</a> · <a href="/api/insights" target="_blank">insights</a> · <a href="/api/qc" target="_blank">qc</a> · <a href="/api/risk" target="_blank">risk</a></span>
   <span class="sep">|</span>
@@ -1072,6 +1083,7 @@ async function loadShops() {
 function renderShopCards(payload) {
   const shops = payload.shops || [];
   const cap = payload.capability || {};
+  renderChromeCard(cap);
   const box = $('shop-cards');
   if (!shops.length) {
     box.innerHTML = '<div class="empty">还没有店铺，先在下面添加一个</div>';
@@ -1079,8 +1091,9 @@ function renderShopCards(payload) {
   }
   const noChromeNotice = cap.browser_login ? '' :
     '<div class="setup-banner" style="grid-column:1/-1;margin:0 0 4px">' +
-    '<div class="txt"><strong>当前电脑没有检测到 Chrome。</strong> 扫码登录不可用，请用「粘贴 Cookie」登录：' +
-    '在能正常登录拼多多商家后台的浏览器按 F12 → Network → 复制 Cookie 整行，粘贴到本页即可。</div></div>';
+    '<div class="txt"><strong>当前电脑没有检测到 Chrome。</strong> 扫码登录不可用：' +
+    '可以点右侧「运行环境」一键下载 Chrome，也可以在本机登录后「导出登录态」到服务器「导入登录态」，' +
+    '或直接粘贴 Cookie。</div></div>';
   box.innerHTML = noChromeNotice + shops.map(shop => {
     const runtime = shop.runtime || {};
     const channel = runtime.channel || {};
@@ -1141,6 +1154,94 @@ async function shopAction(act, shopId) {
     toast(e.message, 'err');
   }
 }
+
+// ---------- 运行环境 · Chrome ----------
+function renderChromeCard(cap) {
+  const state = $('chrome-state');
+  if (!state) return;
+  const help = $('chrome-help');
+  const installBtn = $('chrome-install-btn');
+  const progress = $('chrome-progress');
+  if (!cap) return;
+  if (cap.browser_login) {
+    state.textContent = '可用';
+    help.innerHTML = '已检测到 Chrome：<br/><span style="word-break:break-all">' +
+      esc(cap.chrome_path || cap.chrome || '') + '</span>' +
+      (cap.chrome_version ? '<br/>版本：' + esc(cap.chrome_version) : '');
+    installBtn.style.display = 'none';
+  } else if (cap.chrome_found) {
+    state.textContent = '已安装 · 无图形界面';
+    help.textContent = cap.message ||
+      '已检测到 Chrome，但服务器没有图形界面，无法弹窗扫码；请用本机登录后导出登录态导入。';
+    installBtn.style.display = 'none';
+  } else {
+    state.textContent = '未检测到';
+    help.textContent = '当前电脑没有检测到 Chrome。可以一键下载（约 150MB，无需 root），' +
+      '或在本机登录后「导出登录态」到服务器「导入登录态」。';
+    installBtn.style.display = cap.install_supported ? '' : 'none';
+    installBtn.disabled = false;
+    installBtn.textContent = '一键下载 Chrome';
+  }
+  if (cap.browser_login && progress) progress.style.display = 'none';
+}
+
+async function refreshChromeStatus() {
+  try {
+    const cap = await apiGet('/api/login/capability');
+    renderChromeCard(cap);
+  } catch (e) {
+    const state = $('chrome-state');
+    if (state) state.textContent = '检测失败';
+  }
+}
+
+function pollChromeInstall() {
+  setTimeout(async () => {
+    const progress = $('chrome-progress');
+    const installBtn = $('chrome-install-btn');
+    try {
+      const session = await apiGet('/api/login/chrome/session');
+      progress.style.display = '';
+      progress.textContent = session.message + (session.percent != null ? '（' + session.percent + '%）' : '');
+      if (session.state === 'success') {
+        toast('Chrome 下载完成，已可以使用扫码登录');
+        installBtn.disabled = false;
+        await refreshChromeStatus();
+        await loadShops();
+        return;
+      }
+      if (session.state === 'failed' || session.state === 'idle') {
+        if (session.state === 'failed') toast(session.message || 'Chrome 下载失败', 'err');
+        installBtn.disabled = false;
+        installBtn.textContent = '重新下载 Chrome';
+        return;
+      }
+      pollChromeInstall();
+    } catch (e) {
+      progress.textContent = '查询下载进度失败：' + e.message;
+      installBtn.disabled = false;
+    }
+  }, 1500);
+}
+
+$('chrome-refresh-btn')?.addEventListener('click', refreshChromeStatus);
+$('chrome-install-btn')?.addEventListener('click', async () => {
+  const installBtn = $('chrome-install-btn');
+  const progress = $('chrome-progress');
+  installBtn.disabled = true;
+  installBtn.textContent = '正在下载…';
+  progress.style.display = '';
+  progress.textContent = '正在准备下载 Chrome（约 150MB，请保持页面打开）…';
+  try {
+    await apiPost('/api/login/chrome/install', {});
+    pollChromeInstall();
+  } catch (e) {
+    progress.textContent = '下载失败：' + e.message;
+    installBtn.disabled = false;
+    installBtn.textContent = '重新下载 Chrome';
+    toast(e.message, 'err');
+  }
+});
 
 // ---------- 登录弹窗 ----------
 function openLoginModal(shopId, mode) {

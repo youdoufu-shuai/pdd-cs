@@ -1300,6 +1300,31 @@ async def main(verbose: bool = False) -> int:
 
         await check("网页后台：登录态导出/导入（服务器免 Chrome）", _web_export_import)
 
+        async def _chrome_tool():
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-m",
+                "pdd_cs",
+                "chrome",
+                "--status",
+                "--json",
+                cwd=str(PROJECT_ROOT),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            assert proc.returncode == 0, stderr.decode("utf-8", "replace")[:300]
+            data = json.loads(stdout.decode("utf-8"))
+            assert "found" in data and "display_available" in data
+            capability = await asyncio.to_thread(_web_get, "api/login/capability")
+            assert "chrome_found" in capability and "install_supported" in capability
+            return (
+                f"Chrome 自动检测正常（found={data['found']}，"
+                f"display={data['display_available']}），面板可一键下载"
+            )
+
+        await check("Chrome 自动检测 / 一键安装命令", _chrome_tool)
+
         async def _web_settings_effect():
             # 改默认回复
             result = await asyncio.to_thread(

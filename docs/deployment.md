@@ -128,8 +128,10 @@ monitor:
 
 资源参考（本机实测）：**服务进程 1 店约 40 MB、5 店约 42 MB**（含面板与 SQLite），
 **512 MB 内存 / 1 核 / 10G 磁盘**就能跑 1–5 个店铺；推荐 1 GB 留余量。
-扫码登录时会临时启动 Chrome（约 300–500 MB），登录完自动关闭；服务器不需要装 Chrome：
+扫码登录时会临时启动 Chrome（约 300–500 MB），登录完自动关闭；服务器通常不需要装 Chrome：
 在本机登录后「导出登录态」，再到服务器「导入登录态」（或直接粘贴 Cookie）即可。
+如果服务器本身有桌面/RDP，也可以运行 `python -m pdd_cs chrome --install` 一键下载 Chrome 后直接扫码；
+Linux 无桌面环境即使装了 Chrome 也无法弹窗，仍建议用登录态迁移。
 网络要求：服务器能稳定访问 `*.pinduoduo.com`（建议国内机房），**固定公网 IP 更稳**。
 
 ### 2. 登录问题（服务器没有桌面怎么办）
@@ -180,6 +182,20 @@ python -m pdd_cs doctor
 
 > 提醒：服务器 IP 与常用登录地差异过大时，拼多多可能判定异地登录并踢下线。
 > 建议用固定 IP、先在非高峰小流量验证；被踢后程序会告警，重新在常用网络登录即可。
+
+### 2.0 Chrome 检测与一键安装（可选）
+
+- 检测：`python -m pdd_cs chrome --status`，面板「店铺与登录 → 运行环境」也会显示；
+- 一键下载：`python -m pdd_cs chrome --install`（下载到 `data/chrome/`，约 150MB，免 root）；
+- 离线/镜像：`PDD_CS_CHROME_ZIP=/path/chrome-linux64.zip python -m pdd_cs chrome --install`，
+  或用 `PDD_CS_CHROME_URL` 指定镜像直链；
+- Windows 桌面/RDP 服务器：下载后可以直接在面板「扫码登录」；
+- **Linux 运行库**：Chrome for Testing 需要系统库，Debian/Ubuntu 可先安装：
+  `sudo apt-get install -y libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2 libxss1 libxdamage1 libxrandr2 libxcomposite1 libxfixes3`；
+  缺少时面板会提示「已检测到 Chrome，但启动失败」；
+- **Linux 无桌面服务器**：Chrome 可以装，但没有 `DISPLAY` 时无法弹出扫码窗口，
+  请继续使用「本机登录 → 导出登录态 → 服务器导入」，或自行配置 Xvfb/VNC 后把二维码显示出来；
+- 也可以完全跳过 Chrome：用「导入登录态」或「粘贴 Cookie」。
 
 ### 2.1 端口与访问令牌（服务器必看）
 

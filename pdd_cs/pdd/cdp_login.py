@@ -40,8 +40,215 @@ class LoginError(RuntimeError):
 # ---------------------------------------------------------------------------
 # Chrome 查找与启动
 # ---------------------------------------------------------------------------
+#: 支持用环境变量显式指定 Chrome / Chromium / Edge 可执行文件
+_CHROME_ENV_VARS = (
+    "PDD_CS_CHROME",
+    "PDD_CS_CHROME_PATH",
+    "CHROME_PATH",
+    "CHROME_BIN",
+    "GOOGLE_CHROME_BIN",
+)
+
+
+def _project_chrome_candidates() -> list[str]:
+    """项目内 `data/chrome/` 下由 `python -m pdd_cs chrome --install` 下载的 Chrome。"""
+    try:
+        from ..config import PROJECT_ROOT
+    except Exception:  # noqa: BLE001 - 导入失败时忽略本地 Chrome
+        return []
+    base = PROJECT_ROOT / "data" / "chrome"
+    result: list[str] = []
+    current = base / "current.json"
+    if current.exists():
+        try:
+            data = json.loads(current.read_text(encoding="utf-8"))
+            path = str(data.get("path") or "")
+            if path:
+                result.append(path)
+        except (OSError, json.JSONDecodeError):
+            pass
+    if base.exists():
+        for name in ("chrome.exe", "chrome", "Google Chrome for Testing"):
+            try:
+                result.extend(str(item) for item in base.rglob(name) if item.is_file())
+            except OSError:
+                continue
+    return result
+
+
+def _env_chrome_candidates() -> list[str]:
+    result: list[str] = []
+    for name in _CHROME_ENV_VARS:
+        value = (os.environ.get(name) or "").strip()
+        if not value:
+            continue
+        path = Path(value)
+        if path.is_dir():
+            result.extend(str(path / exe) for exe in ("chrome.exe", "chrome", "msedge.exe"))
+        else:
+            result.append(value)
+    return result
+
+
+def _windows_registry_chrome() -> list[str]:
+    if not sys.platform.startswith("win"):
+        return []
+    result: list[str] = []
+    try:
+        import winreg
+
+        for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            for exe in ("chrome.exe", "msedge.exe"):
+                try:
+                    key = winreg.OpenKey(
+                        root,
+                        rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe}",
+                    )
+                    value, _ = winreg.QueryValueEx(key, "")
+                    if value:
+                        result.append(str(value))
+                except OSError:
+                    continue
+    except Exception:  # noqa: BLE001 - 非 Windows / 权限受限
+        return []
+    return result
+
+
+def _display_available() -> bool:
+    """当前环境是否有图形界面（Linux 服务器通常没有 DISPLAY）。"""
+    if sys.platform.startswith("win") or sys.platform == "darwin":
+        return True
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
+def display_available() -> bool:
+    """公开版本：当前环境是否有图形界面。"""
+    return _display_available()
+
+
+def _windows_chrome_version() -> str:
+    """Windows 上不要执行 chrome --version（会拉起窗口），改读注册表/文件版本。"""
+    try:
+        import winreg
+
+        for root, sub in (
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Google\Chrome\BLBeacon"),
+            (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Google\Chrome\BLBeacon"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Google\Chrome\BLBeacon"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Edge\BLBeacon"),
+        ):
+            try:
+                key = winreg.OpenKey(root, sub)
+                value, _ = winreg.QueryValueEx(key, "version")
+                if value:
+                    return str(value)
+            except OSError:
+                continue
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def _project_chrome_version(path: str) -> str:
+    try:
+        from ..config import PROJECT_ROOT
+
+        current = PROJECT_ROOT / "data" / "chrome" / "current.json"
+        if current.exists():
+            data = json.loads(current.read_text(encoding="utf-8"))
+            stored_path = str(data.get("path") or "")
+            if stored_path and Path(stored_path).resolve() == Path(path).resolve():
+                return str(data.get("version") or "")
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def chrome_version(path: str) -> str:
+    """读取 Chrome/Chromium/Edge 版本；读取失败返回空字符串。"""
+    project_version = _project_chrome_version(path)
+    if project_version:
+        return project_version
+    if sys.platform.startswith("win"):
+        return _windows_chrome_version()
+    try:
+        proc = subprocess.run(
+            [path, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=6,
+        )
+        lines = ((proc.stdout or "") + (proc.stderr or "")).strip().splitlines()
+        return lines[0].strip() if lines else ""
+    except Exception:  # noqa: BLE001 - 版本只用于展示
+        return ""
+
+
+def _chrome_source(path: str) -> str:
+    try:
+        env_paths = {
+            str(Path(value).resolve())
+            for value in _env_chrome_candidates()
+            if Path(value).exists()
+        }
+        if str(Path(path).resolve()) in env_paths:
+            return "env"
+        from ..config import PROJECT_ROOT
+
+        local = (PROJECT_ROOT / "data" / "chrome").resolve()
+        if local in Path(path).resolve().parents or Path(path).resolve() == local:
+            return "project"
+    except Exception:  # noqa: BLE001
+        pass
+    return "system"
+
+
+def chrome_status(explicit: Optional[str] = None) -> dict:
+    """Chrome 检测结果：是否找到、路径、版本、来源、是否有图形界面。"""
+    display = _display_available()
+    try:
+        path = find_chrome(explicit)
+    except LoginError as exc:
+        return {
+            "found": False,
+            "runnable": False,
+            "path": "",
+            "version": "",
+            "source": "",
+            "display_available": display,
+            "message": str(exc),
+        }
+    version = chrome_version(path)
+    lowered = version.lower()
+    broken = any(
+        token in lowered
+        for token in ("error while loading shared libraries", "cannot open shared object", "not found")
+    )
+    if broken:
+        message = (
+            "已检测到 Chrome，但启动失败（通常是 Linux 缺少运行库）。"
+            "可安装 libnss3 等依赖后重试，或改用「导入登录态」。"
+        )
+    elif display:
+        message = "已检测到 Chrome"
+    else:
+        message = (
+            "已检测到 Chrome，但当前没有图形界面（DISPLAY），无法弹出扫码窗口。"
+            "请在本机登录后导出登录态，再到服务器导入；或在服务器配置 Xvfb/VNC。"
+        )
+    return {
+        "found": True,
+        "runnable": not broken,
+        "path": path,
+        "version": version,
+        "source": _chrome_source(path),
+        "display_available": display,
+        "message": message,
+    }
+
+
 def find_chrome(explicit: Optional[str] = None) -> str:
-    """定位本机 Chrome 可执行文件。"""
+    """定位 Chrome / Chromium / Edge 可执行文件（优先环境变量与项目内下载）。"""
     if explicit:
         path = Path(explicit)
         if path.exists():
@@ -49,35 +256,62 @@ def find_chrome(explicit: Optional[str] = None) -> str:
         raise LoginError(f"指定的 Chrome 不存在: {explicit}")
 
     candidates: list[str] = []
+    candidates += _env_chrome_candidates()
+
     if sys.platform.startswith("win"):
         for env_name in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
             base = os.environ.get(env_name)
             if base:
                 candidates.append(str(Path(base) / "Google" / "Chrome" / "Application" / "chrome.exe"))
+                candidates.append(str(Path(base) / "Microsoft" / "Edge" / "Application" / "msedge.exe"))
         candidates += [
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
             r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
         ]
+        candidates += _windows_registry_chrome()
     elif sys.platform == "darwin":
         candidates += [
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             str(Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
         ]
     else:
-        for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
+        candidates += [
+            "/opt/google/chrome/chrome",
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            "/snap/bin/chromium",
+        ]
+        for name in (
+            "google-chrome",
+            "google-chrome-stable",
+            "chromium",
+            "chromium-browser",
+            "microsoft-edge",
+            "microsoft-edge-stable",
+        ):
             found = shutil.which(name)
             if found:
                 candidates.append(found)
 
+    candidates += _project_chrome_candidates()
+
     for candidate in candidates:
         if candidate and Path(candidate).exists():
             return candidate
-    # 最后尝试 PATH
-    for name in ("chrome", "google-chrome", "chromium"):
+    for name in ("chrome", "google-chrome", "chromium", "msedge", "microsoft-edge"):
         found = shutil.which(name)
         if found:
             return found
-    raise LoginError("未找到 Chrome，请用 --chrome 指定可执行文件路径")
+    raise LoginError(
+        "未找到 Chrome/Chromium/Edge：可以运行 `python -m pdd_cs chrome --install` 一键下载，"
+        "或用 --chrome 指定可执行文件路径。"
+    )
 
 
 def _free_port() -> int:
@@ -286,5 +520,7 @@ __all__ = [
     "login_with_browser",
     "save_cookie_text",
     "find_chrome",
+    "chrome_status",
+    "chrome_version",
     "LoginError",
 ]

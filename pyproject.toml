@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pdd-cs"
-version = "1.5.0"
+version = "1.6.0"
 description = "拼多多智能客服：基于拼多多商家后台实时消息的 AI 客服（只做拼多多）"
 readme = "README.md"
 requires-python = ">=3.10"

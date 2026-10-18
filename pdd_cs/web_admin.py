@@ -32,7 +32,14 @@ from .pdd.auth import (
     parse_cookie_text,
     validate_cookies,
 )
-from .pdd.cdp_login import LoginError, find_chrome, login_with_browser
+from .chrome_setup import ChromeInstallError, install_chrome, install_supported
+from .pdd.cdp_login import (
+    LoginError,
+    chrome_version,
+    display_available,
+    find_chrome,
+    login_with_browser,
+)
 from .utils import now_beijing
 
 logger = logging.getLogger("pdd_cs.web_admin")
@@ -569,14 +576,146 @@ class LoginManager:
         self._lock = threading.Lock()
         self._sessions: dict[str, dict[str, Any]] = {}
         self._active_browser: Optional[str] = None
+        self._chrome_install: Optional[dict[str, Any]] = None
 
     # -- 能力检测 ---------------------------------------------------
     def capability(self) -> dict[str, Any]:
+        display = display_available()
+        supported = install_supported()
         try:
             chrome = find_chrome()
-            return {"browser_login": True, "chrome": chrome}
-        except LoginError as exc:
-            return {"browser_login": False, "message": str(exc), "chrome": ""}
+        except LoginError:
+            return {
+                "browser_login": False,
+                "chrome": "",
+                "chrome_found": False,
+                "chrome_runnable": False,
+                "chrome_path": "",
+                "chrome_version": "",
+                "display_available": display,
+                "install_supported": supported,
+                "message": "未找到 Chrome/Chromium/Edge：可以一键下载 Chrome（约 150MB，免 root），"
+                "或使用「粘贴 Cookie / 导入登录态」。",
+            }
+        version = chrome_version(chrome)
+        lowered = version.lower()
+        broken = any(
+            token in lowered
+            for token in ("error while loading shared libraries", "cannot open shared object", "not found")
+        )
+        if broken:
+            return {
+                "browser_login": False,
+                "chrome": chrome,
+                "chrome_found": True,
+                "chrome_runnable": False,
+                "chrome_path": chrome,
+                "chrome_version": version,
+                "display_available": display,
+                "install_supported": supported,
+                "message": "已检测到 Chrome，但启动失败（通常是 Linux 缺少运行库）。"
+                "请安装 libnss3 等依赖，或改用「导入登录态」。",
+            }
+        if not display:
+            return {
+                "browser_login": False,
+                "chrome": chrome,
+                "chrome_found": True,
+                "chrome_runnable": True,
+                "chrome_path": chrome,
+                "chrome_version": version,
+                "display_available": False,
+                "install_supported": supported,
+                "message": "已检测到 Chrome，但当前没有图形界面（DISPLAY），无法弹出扫码窗口。"
+                "请在本机登录后导出登录态，再到服务器导入；或在服务器配置 Xvfb/VNC。",
+            }
+        return {
+            "browser_login": True,
+            "chrome": chrome,
+            "chrome_found": True,
+            "chrome_runnable": True,
+            "chrome_path": chrome,
+            "chrome_version": version,
+            "display_available": True,
+            "install_supported": supported,
+            "message": "已检测到 Chrome",
+        }
+
+    # -- Chrome 一键下载 --------------------------------------------
+    def start_chrome_install(self) -> dict[str, Any]:
+        if not install_supported():
+            raise SettingsError(
+                "当前系统不支持自动下载 Chrome（例如 ARM Linux）。"
+                "请用系统包管理器安装 Chromium，或使用「导入登录态」方式。"
+            )
+        with self._lock:
+            session = self._chrome_install
+            if session and session["state"] in ("pending", "running"):
+                return self.get_chrome_install()
+            session_id = uuid.uuid4().hex[:12]
+            self._chrome_install = {
+                "session_id": session_id,
+                "state": "pending",
+                "percent": 0,
+                "message": "准备下载 Chrome…",
+                "started_at": time.time(),
+                "path": "",
+                "version": "",
+                "error": "",
+            }
+        thread = threading.Thread(
+            target=self._run_chrome_install,
+            args=(session_id,),
+            name="chrome-install",
+            daemon=True,
+        )
+        thread.start()
+        return self.get_chrome_install()
+
+    def _run_chrome_install(self, session_id: str) -> None:
+        def progress(stage: str, percent: float, message: str) -> None:
+            with self._lock:
+                if self._chrome_install and self._chrome_install["session_id"] == session_id:
+                    self._chrome_install.update(
+                        state="running", percent=round(percent, 1), message=message
+                    )
+
+        try:
+            result = install_chrome(progress=progress)
+            with self._lock:
+                if self._chrome_install and self._chrome_install["session_id"] == session_id:
+                    self._chrome_install.update(
+                        state="success",
+                        percent=100,
+                        message=f"Chrome 已安装：{result.get('path', '')}",
+                        path=str(result.get("path") or ""),
+                        version=str(result.get("version") or ""),
+                    )
+        except ChromeInstallError as exc:
+            with self._lock:
+                if self._chrome_install and self._chrome_install["session_id"] == session_id:
+                    self._chrome_install.update(state="failed", message=str(exc), error=str(exc))
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Chrome 下载安装异常")
+            with self._lock:
+                if self._chrome_install and self._chrome_install["session_id"] == session_id:
+                    self._chrome_install.update(
+                        state="failed", message=f"安装失败：{exc}", error=str(exc)
+                    )
+
+    def get_chrome_install(self) -> dict[str, Any]:
+        with self._lock:
+            if not self._chrome_install:
+                return {
+                    "state": "idle",
+                    "percent": 0,
+                    "message": "还没有开始下载",
+                    "elapsed_seconds": 0,
+                }
+            session = dict(self._chrome_install)
+        session["elapsed_seconds"] = round(time.time() - session["started_at"], 1)
+        session.pop("started_at", None)
+        return session
 
     def _profile(self, shop_id: str):
         for profile in self.config.shops:
@@ -608,9 +747,14 @@ class LoginManager:
         profile = self._profile(shop_id)
         capability = self.capability()
         if not capability["browser_login"]:
+            if capability.get("chrome_found"):
+                raise SettingsError(
+                    "已检测到 Chrome，但当前环境没有图形界面（DISPLAY），无法弹出扫码窗口。"
+                    "请在本机登录后导出登录态，再到服务器导入；或在服务器配置 Xvfb/VNC。"
+                )
             raise SettingsError(
                 "当前环境没有可用的 Chrome，无法打开登录窗口。"
-                "请在本地电脑登录后使用「粘贴 Cookie」，或把 Cookie 文件传到服务器。"
+                "可以点「一键下载 Chrome」，或在本机登录后导出登录态/粘贴 Cookie 导入。"
             )
         with self._lock:
             if self._active_browser:

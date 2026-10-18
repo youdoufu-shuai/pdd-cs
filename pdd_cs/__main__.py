@@ -47,7 +47,13 @@ from .engine.service import PDDAutoReplyService
 from .engine.qc import QCScanner
 from .pdd.api import PDDClient, PDDSessionExpired
 from .pdd.auth import CookieBundle, CookieError, CookieStore, cookie_age_hours
-from .pdd.cdp_login import LoginError, find_chrome, login_with_browser, save_cookie_text
+from .chrome_setup import ChromeInstallError, install_chrome, install_supported
+from .pdd.cdp_login import (
+    LoginError,
+    chrome_status,
+    login_with_browser,
+    save_cookie_text,
+)
 from .rules_io import RULE_TYPES, export_csv, import_csv
 from .server import DashboardServer
 from .utils import now_beijing, truncate
@@ -368,6 +374,60 @@ def _print_welcome() -> None:
     print()
 
 
+def cmd_chrome(args) -> int:
+    if args.install:
+        if not install_supported():
+            print("❌ 当前系统不支持自动下载 Chrome（例如 ARM Linux），请用系统包管理器安装 Chromium。")
+            return 2
+        print("正在下载/安装 Chrome for Testing（约 150MB，免 root）…")
+
+        def progress(stage: str, percent: float, message: str) -> None:
+            print(f"  [{percent:5.1f}%] {message}", flush=True)
+
+        try:
+            result = install_chrome(
+                zip_path=Path(args.zip) if args.zip else None,
+                force=bool(args.force),
+                progress=progress,
+            )
+        except ChromeInstallError as exc:
+            print(f"❌ 安装失败：{exc}")
+            return 1
+        except KeyboardInterrupt:
+            print("\n已取消")
+            return 130
+        status = chrome_status()
+        if args.json:
+            print(json.dumps(status, ensure_ascii=False, indent=2))
+        else:
+            print(f"✅ Chrome 已安装：{result.get('path', '')}")
+            if status.get("version"):
+                print(f"   版本：{status['version']}")
+            print("   下一步：python -m pdd_cs login（或直接打开网页面板登录）")
+        return 0
+
+    status = chrome_status()
+    if args.json:
+        print(json.dumps(status, ensure_ascii=False, indent=2))
+        return 0
+    if status.get("found"):
+        print("✅ 已检测到 Chrome/Chromium/Edge")
+        print(f"   路径：{status['path']}")
+        print(f"   版本：{status.get('version') or '未知'}")
+        print(f"   来源：{status.get('source') or 'system'}")
+        if status.get("display_available"):
+            print("   图形界面：有（可以直接扫码登录）")
+        else:
+            print("   图形界面：无（服务器无法弹出扫码窗口）")
+            print("   请在本机登录后导出登录态，再到服务器面板「导入登录态」；或配置 Xvfb/VNC。")
+    else:
+        print("⚠️ 未检测到 Chrome/Chromium/Edge")
+        print("   一键下载：python -m pdd_cs chrome --install")
+        print("   离线安装：PDD_CS_CHROME_ZIP=/path/chrome-linux64.zip python -m pdd_cs chrome --install")
+        print("   或者：本机登录后导出登录态，到服务器「导入登录态」，完全不需要 Chrome。")
+    return 0
+
+
 def cmd_login(args) -> int:
     print(BANNER)
     config = _load_config(args)
@@ -388,6 +448,14 @@ def cmd_login(args) -> int:
             save_cookie_text(store, text, shop_name=profile.display_name)
             print("✅ Cookie 已保存")
         else:
+            status = chrome_status()
+            if status.get("found") and not status.get("display_available"):
+                print("❌ 已检测到 Chrome，但当前环境没有图形界面（DISPLAY），无法弹出扫码窗口。")
+                print("   可选方案：")
+                print("   1) 本机登录后导出登录态，到服务器面板「导入登录态」（推荐）")
+                print("   2) 用 --cookie / --cookie-file 粘贴 Cookie")
+                print("   3) 在服务器配置 Xvfb/VNC 后重试")
+                return 2
             login_with_browser(
                 store,
                 chrome_path=args.chrome,
@@ -625,14 +693,27 @@ def cmd_doctor(args) -> int:
         line("❌", "内部组件", str(exc))
 
     try:
-        chrome_path = find_chrome()
-        line("✅", "Chrome 登录助手", chrome_path)
-    except LoginError:
-        line(
-            "⚠️",
-            "Chrome 登录助手",
-            "未检测到 Chrome：不影响程序运行，登录时用网页「粘贴 Cookie」即可",
-        )
+        chrome = chrome_status()
+        if chrome.get("found"):
+            detail = chrome["path"]
+            if chrome.get("version"):
+                detail += f"（{chrome['version']}）"
+            line("✅", "Chrome 登录助手", detail)
+            if not chrome.get("display_available"):
+                line(
+                    "⚠️",
+                    "图形界面",
+                    "未检测到 DISPLAY：服务器无法弹出扫码窗口；请用「本机登录 → 导出登录态 → 服务器导入」",
+                )
+        else:
+            line(
+                "⚠️",
+                "Chrome 登录助手",
+                "未检测到 Chrome/Chromium/Edge：可运行 python -m pdd_cs chrome --install 一键下载（免 root），"
+                "或使用「导入登录态」",
+            )
+    except Exception as exc:  # noqa: BLE001
+        line("⚠️", "Chrome 登录助手", f"检测失败：{exc}")
     line(
         "✅" if config.server.auth_token else "⚠️",
         "面板访问令牌",
@@ -889,6 +970,16 @@ def build_parser() -> argparse.ArgumentParser:
     login_parser.add_argument("--timeout", type=int, default=300, help="等待登录秒数")
     login_parser.add_argument("--keep-open", action="store_true", help="保存后保持浏览器打开")
     login_parser.set_defaults(func=cmd_login)
+
+    chrome_parser = subparsers.add_parser(
+        "chrome", help="检测 / 一键下载 Chrome（服务器可选；下载到项目 data/chrome）"
+    )
+    chrome_parser.add_argument("--status", action="store_true", help="显示检测结果（默认）")
+    chrome_parser.add_argument("--install", action="store_true", help="下载并安装 Chrome for Testing")
+    chrome_parser.add_argument("--force", action="store_true", help="已安装也重新下载")
+    chrome_parser.add_argument("--zip", help="离线安装包路径（chrome-linux64.zip 等）")
+    chrome_parser.add_argument("--json", action="store_true", help="以 JSON 输出检测结果")
+    chrome_parser.set_defaults(func=cmd_chrome)
 
     run_parser = subparsers.add_parser("run", help="启动自动客服（多店铺）")
     run_parser.add_argument("--config", help="配置文件路径")

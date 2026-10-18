@@ -353,6 +353,15 @@ async def _http_scenario(tmp_path, monkeypatch):
         assert setup["setup_mode"] is True
         assert isinstance(setup["shops"], list)
 
+        # Chrome 检测 / 一键下载状态接口
+        status, capability = await asyncio.to_thread(_get, base + "api/login/capability")
+        assert status == 200 and "chrome_found" in capability
+        assert "install_supported" in capability and "display_available" in capability
+        status, chrome_session = await asyncio.to_thread(
+            _get, base + "api/login/chrome/session"
+        )
+        assert status == 200 and chrome_session["state"] == "idle" 
+
         # 新增店铺
         status, result = await asyncio.to_thread(
             _post, base + "api/shops/add", {"id": "shop-a", "name": "A店"}

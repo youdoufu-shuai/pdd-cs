@@ -130,7 +130,7 @@ class DashboardServer:
         auth_token = (config.server.auth_token or "").strip()
 
         class Handler(BaseHTTPRequestHandler):
-            server_version = "pdd-cs/1.5"
+            server_version = "pdd-cs/1.6"
 
             def log_message(self, fmt: str, *args) -> None:  # noqa: A003
                 logger.debug("dashboard: " + fmt, *args)
@@ -336,6 +336,9 @@ class DashboardServer:
                 if path == "/api/login/capability":
                     self._send_json({"ok": True, **admin.capability()})
                     return
+                if path == "/api/login/chrome/session":
+                    self._send_json({"ok": True, **admin.get_chrome_install()})
+                    return
                 if path == "/api/login/export":
                     shop_id = (query.get("shop_id", [""])[0] or "").strip()
                     if not shop_id:
@@ -505,6 +508,10 @@ class DashboardServer:
                 if path == "/api/shops/delete":
                     delete_shop(service.config, str(data.get("shop_id") or ""))
                     self._send_json(self._reload())
+                    return
+                if path == "/api/login/chrome/install":
+                    session = admin.start_chrome_install()
+                    self._send_json({"ok": True, **session})
                     return
                 if path == "/api/login/browser":
                     session = admin.start_browser_login(str(data.get("shop_id") or ""))
