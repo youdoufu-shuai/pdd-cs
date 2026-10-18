@@ -1272,6 +1272,34 @@ async def main(verbose: bool = False) -> int:
 
         await check("网页后台：Cookie 登录（免终端）", _web_cookie_login)
 
+        async def _web_export_import():
+            export = await asyncio.to_thread(
+                _web_get, "api/login/export?shop_id=web-shop"
+            )
+            assert export["code"].startswith("PDDCS1."), export
+            assert export["cookies"] >= 6, export
+            assert "PASS_ID" not in export["code"]
+
+            await asyncio.to_thread(
+                _web_post, "api/login/logout", {"shop_id": "web-shop"}
+            )
+            result = await asyncio.to_thread(
+                _web_post,
+                "api/login/import",
+                {"shop_id": "web-shop", "text": export["code"]},
+            )
+            assert result.get("session_valid") is True, result
+            for _ in range(40):
+                status = await asyncio.to_thread(_web_get, "api/status")
+                if status.get("online_shops", 0) >= 1:
+                    break
+                await asyncio.sleep(0.5)
+            else:
+                raise AssertionError(f"导入后店铺未上线: {status}")
+            return "本机导出登录码 → 服务器粘贴导入成功，服务器无需 Chrome"
+
+        await check("网页后台：登录态导出/导入（服务器免 Chrome）", _web_export_import)
+
         async def _web_settings_effect():
             # 改默认回复
             result = await asyncio.to_thread(

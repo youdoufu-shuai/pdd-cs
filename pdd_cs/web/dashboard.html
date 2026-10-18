@@ -240,6 +240,11 @@
   .help-list{font-size:12.5px;color:var(--muted);line-height:1.9;padding:4px 16px 14px}
   .help-list b{color:var(--ink-2)}
   .status-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:0 16px 12px}
+  .login-code{width:100%;font-family:ui-monospace,Consolas,"Courier New",monospace;font-size:11.5px;
+    line-height:1.65;word-break:break-all;background:#f8fafc;color:#334155}
+  .migration-steps{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.9}
+  .migration-steps b{color:var(--ink-2)}
+  .migration-steps li{margin:3px 0}
   @media (max-width:900px){.form-grid{grid-template-columns:1fr}.tabs{padding:10px 16px 0}}
 
 </style>
@@ -430,11 +435,15 @@
           </div>
         </section>
         <section class="card" data-tone="amber">
-          <div class="card-head"><h3>服务器上使用？</h3></div>
+          <div class="card-head"><h3>服务器不用装 Chrome</h3><span class="meta">本机登录 → 服务器导入</span></div>
           <div class="help-list">
-            服务器没有桌面浏览器，无法弹出扫码窗口。<br/>
-            请在本地电脑登录后，把 <b>config/secrets/店铺id.json</b> 上传到服务器；<br/>
-            或直接在网页里粘贴 Cookie。
+            <ol class="migration-steps">
+              <li><b>在你自己的电脑登录：</b>打开本地面板，点「扫码登录」（没有 Chrome 就粘贴 Cookie）。</li>
+              <li><b>导出登录态：</b>店铺卡片点「导出登录态」，复制登录码，或下载 JSON 文件。</li>
+              <li><b>在服务器导入：</b>打开服务器面板，同一店铺点「导入登录态」，粘贴登录码或上传文件。</li>
+            </ol>
+            导入成功后服务器会自动连接店铺，<b>全程不需要在服务器安装 Chrome</b>。
+            登录态等同于账号密码，请只在自己的设备间传输，导入后删除导出文件。
           </div>
         </section>
       </aside>
@@ -632,10 +641,39 @@
     </div>
   </div>
 </div>
+<div class="modal-mask" id="export-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="export-title">导出登录态</h3><button class="ghost small" id="export-close">关闭</button></div>
+    <div class="modal-body">
+      <p>把下面的登录码复制到服务器面板的「导入登录态」，或下载 JSON 文件上传。<b>登录态等同于账号密码，请勿发给他人。</b></p>
+      <textarea class="login-code" id="export-code" rows="5" readonly placeholder="正在读取登录态…"></textarea>
+      <div class="help-list" id="export-state" style="padding:10px 0 0">—</div>
+      <div class="btn-row" style="margin-top:10px">
+        <button id="export-copy-btn">复制登录码</button>
+        <button class="ghost small" id="export-download-btn">下载登录态文件</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="import-modal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="import-title">导入登录态</h3><button class="ghost small" id="import-close">关闭</button></div>
+    <div class="modal-body">
+      <p>在本地电脑面板「导出登录态」后，把登录码粘贴到这里；也可以上传导出的 JSON 文件。导入成功后服务器会自动连接店铺，<b>服务器无需安装 Chrome</b>。</p>
+      <label class="field"><span>选择从本机导出的登录态文件（.json / .txt）</span><input type="file" id="import-file" accept=".json,.txt,application/json,text/plain"/></label>
+      <label class="field"><span>或直接粘贴登录码 / JSON</span><textarea class="login-code" id="import-text" rows="6" placeholder="PDDCS1.... 或者粘贴 pdd-login-xxx.json 的内容"></textarea></label>
+      <div class="help-list" id="import-state" style="padding:10px 0 0">等待导入…</div>
+      <div class="btn-row" style="margin-top:10px">
+        <button id="import-btn">导入并上线</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <footer>
-  <span>pdd-cs v1.4</span>
+  <span>pdd-cs v1.5</span>
   <span class="sep">|</span>
   <span>接口：<a href="/api/status" target="_blank">status</a> · <a href="/api/pending" target="_blank">pending</a> · <a href="/api/insights" target="_blank">insights</a> · <a href="/api/qc" target="_blank">qc</a> · <a href="/api/risk" target="_blank">risk</a></span>
   <span class="sep">|</span>
@@ -1053,6 +1091,7 @@ function renderShopCards(payload) {
       ? ('已保存登录态' + (shop.cookie_age_hours != null ? '（' + shop.cookie_age_hours + ' 小时前）' : ''))
       : '还没有登录';
     const browserDisabled = cap.browser_login ? '' : 'disabled title="当前环境没有 Chrome，请用粘贴 Cookie"';
+    const exportDisabled = shop.cookie_saved ? '' : 'disabled title="先扫码登录或粘贴 Cookie，再导出登录态"';
     const reconnect = connected ? '' : '<button class="ghost small" data-act="reload" data-shop="' + esc(shop.id) + '">重连</button>';
     return '<div class="shop-card ' + (connected ? 'logged' : (shop.enabled ? 'offline' : 'disabled')) + '">' +
       '<div class="row1"><div><h4>' + esc(shop.name) + '</h4><div class="sid">店铺 ID：' + esc(shop.id) + '</div></div>' +
@@ -1061,6 +1100,8 @@ function renderShopCards(payload) {
       '<div class="actions">' +
       '<button class="small" data-act="browser" data-shop="' + esc(shop.id) + '" ' + browserDisabled + '>扫码登录</button>' +
       '<button class="ghost small" data-act="cookie" data-shop="' + esc(shop.id) + '">粘贴 Cookie</button>' +
+      '<button class="ghost small" data-act="export" data-shop="' + esc(shop.id) + '" ' + exportDisabled + '>导出登录态</button>' +
+      '<button class="ghost small" data-act="import" data-shop="' + esc(shop.id) + '">导入登录态</button>' +
       reconnect +
       '<button class="ghost small" data-act="' + (shop.enabled ? 'disable' : 'enable') + '" data-shop="' + esc(shop.id) + '">' + (shop.enabled ? '停用' : '启用') + '</button>' +
       '<button class="ghost small" data-act="delete" data-shop="' + esc(shop.id) + '">删除</button>' +
@@ -1076,6 +1117,10 @@ async function shopAction(act, shopId) {
       openLoginModal(shopId, 'browser');
     } else if (act === 'cookie') {
       openLoginModal(shopId, 'cookie');
+    } else if (act === 'export') {
+      openExportModal(shopId);
+    } else if (act === 'import') {
+      openImportModal(shopId);
     } else if (act === 'reload') {
       const result = await apiPost('/api/service/reload', {});
       toast(result.online_shops > 0 ? '已重新连接店铺' : '已重新加载，但店铺还没登录', result.online_shops > 0 ? 'ok' : 'err');
@@ -1182,6 +1227,131 @@ $('save-cookie-btn')?.addEventListener('click', async () => {
     toast(e.message, 'err');
   }
 });
+// ---------- 登录态导出 / 导入（本机登录 → 服务器免 Chrome） ----------
+let exportData = null;
+let importShopId = '';
+
+async function copyPlainText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    const helper = document.createElement('textarea');
+    helper.value = text;
+    helper.style.position = 'fixed';
+    helper.style.opacity = '0';
+    document.body.appendChild(helper);
+    helper.select();
+    try { return document.execCommand('copy'); } finally { helper.remove(); }
+  }
+}
+
+function openExportModal(shopId) {
+  exportData = null;
+  $('export-title').textContent = '导出登录态 · ' + shopId;
+  $('export-code').value = '';
+  $('export-state').textContent = '正在读取登录态…';
+  $('export-modal').classList.add('show');
+  apiGet('/api/login/export?shop_id=' + encodeURIComponent(shopId))
+    .then(result => {
+      exportData = result;
+      $('export-code').value = result.code;
+      $('export-state').textContent =
+        '已保存 ' + result.cookies + ' 个 Cookie（' + (result.saved_at || '时间未知') + '）。' +
+        '把登录码或文件带到服务器面板的「导入登录态」即可，' + result.warning;
+    })
+    .catch(err => {
+      $('export-state').textContent = '导出失败：' + err.message;
+      toast(err.message, 'err');
+    });
+}
+
+function closeExportModal() {
+  $('export-modal').classList.remove('show');
+}
+
+$('export-close')?.addEventListener('click', closeExportModal);
+$('export-modal')?.addEventListener('click', (event) => {
+  if (event.target === $('export-modal')) closeExportModal();
+});
+$('export-copy-btn')?.addEventListener('click', async () => {
+  if (!exportData) { toast('还没有读取到登录态', 'err'); return; }
+  const button = $('export-copy-btn');
+  const ok = await copyPlainText($('export-code').value);
+  if (ok) {
+    button.textContent = '已复制 ✓';
+    toast('登录码已复制，粘贴到服务器面板即可');
+    setTimeout(() => { button.textContent = '复制登录码'; }, 2500);
+  } else {
+    $('export-code').select();
+    toast('复制失败，请手动全选复制', 'err');
+  }
+});
+$('export-download-btn')?.addEventListener('click', () => {
+  if (!exportData) { toast('还没有读取到登录态', 'err'); return; }
+  const blob = new Blob([exportData.file_text], {type: 'application/json;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = exportData.filename || ('pdd-login-' + exportData.shop_id + '.json');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  toast('登录态文件已下载');
+});
+
+function openImportModal(shopId) {
+  importShopId = shopId;
+  $('import-title').textContent = '导入登录态 · ' + shopId;
+  $('import-text').value = '';
+  $('import-file').value = '';
+  $('import-state').textContent = '等待导入…';
+  $('import-modal').classList.add('show');
+}
+
+function closeImportModal() {
+  $('import-modal').classList.remove('show');
+}
+
+$('import-close')?.addEventListener('click', closeImportModal);
+$('import-modal')?.addEventListener('click', (event) => {
+  if (event.target === $('import-modal')) closeImportModal();
+});
+$('import-file')?.addEventListener('change', (event) => {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    $('import-text').value = String(reader.result || '');
+    $('import-state').textContent = '已选择文件：' + file.name;
+  };
+  reader.onerror = () => { $('import-state').textContent = '读取文件失败，请直接粘贴登录码'; };
+  reader.readAsText(file, 'utf-8');
+});
+$('import-btn')?.addEventListener('click', async () => {
+  const text = $('import-text').value.trim();
+  if (!text) { toast('请先粘贴登录码，或选择导出的登录态文件', 'err'); return; }
+  const button = $('import-btn');
+  button.disabled = true;
+  $('import-state').textContent = '正在校验并导入登录态…';
+  try {
+    const result = await apiPost('/api/login/import', {shop_id: importShopId, text: text});
+    let message = '导入成功，已保存 ' + result.cookies + ' 个 Cookie';
+    if (result.session_valid) message += '，登录态有效';
+    if (result.warnings && result.warnings.length) message += '（' + result.warnings[0] + '）';
+    $('import-state').textContent = message;
+    toast('登录态已导入，店铺正在上线');
+    closeImportModal();
+    await loadShops(); load();
+  } catch (e) {
+    $('import-state').textContent = '导入失败：' + e.message;
+    toast(e.message, 'err');
+  } finally {
+    button.disabled = false;
+  }
+});
+
 $('add-shop-btn')?.addEventListener('click', async () => {
   const id = $('new-shop-id').value.trim();
   const name = $('new-shop-name').value.trim();

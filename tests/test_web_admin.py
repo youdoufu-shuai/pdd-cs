@@ -207,6 +207,56 @@ def test_browser_login_requires_chrome(tmp_path, monkeypatch):
         raise AssertionError("没有 Chrome 时应提示改用 Cookie 登录")
 
 
+def test_login_export_import_bundle(tmp_path, monkeypatch):
+    config = _temp_config(tmp_path)
+    web_admin.add_shop(config, "shop-a", "A店")
+    config = Config.load(config.source)
+    monkeypatch.setattr(web_admin, "PDDClient", _FakeClient)
+    manager = web_admin.LoginManager(config)
+
+    # 未登录时导出应给出明确提示
+    try:
+        manager.export_bundle("shop-a")
+    except web_admin.SettingsError as exc:
+        assert "还没有登录态" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("未登录时不应允许导出")
+
+    manager.cookie_login("shop-a", MOCK_COOKIE)
+    export = manager.export_bundle("shop-a")
+    assert export["cookies"] == 8
+    assert export["code"].startswith("PDDCS1.")
+    assert "PASS_ID" not in export["code"]  # 压缩编码后不应直接暴露 Cookie
+    assert "cookies" in export["file_text"]
+
+    cookie_path = Path(config.shop_profile("shop-a").cookie_file)
+    cookie_path.unlink()
+    imported = manager.import_bundle("shop-a", export["code"])
+    assert imported["imported"] is True and imported["session_valid"] is True
+    assert imported["shop_name"] == "测试店铺"
+    assert cookie_path.exists()
+
+    # 也支持直接粘贴导出的 JSON 文件内容、或纯 Cookie 文本
+    cookie_path.unlink()
+    assert manager.import_bundle("shop-a", export["file_text"])["session_valid"] is True
+    assert manager.import_bundle("shop-a", MOCK_COOKIE)["session_valid"] is True
+
+    # 跨店铺导入给出提醒
+    web_admin.add_shop(config, "shop-b", "B店")
+    config = Config.load(config.source)
+    manager = web_admin.LoginManager(config)
+    imported = manager.import_bundle("shop-b", export["code"])
+    assert imported["source_shop"] == "shop-a"
+    assert any("shop-a" in warning for warning in imported["warnings"])
+
+    for bad in ("PDDCS1.broken", '{"foo": "bar"}', ""):
+        try:
+            manager.import_bundle("shop-b", bad)
+        except web_admin.SettingsError:
+            continue
+        raise AssertionError(f"非法登录态未被拒绝: {bad!r}")
+
+
 # ---------------------------------------------------------------------------
 # 话术 / 知识库 / 人设
 # ---------------------------------------------------------------------------
@@ -262,8 +312,11 @@ def test_service_reload_degraded(tmp_path):
 # HTTP API
 # ---------------------------------------------------------------------------
 def _get(url: str):
-    with urllib.request.urlopen(url, timeout=20) as resp:
-        return resp.status, json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(url, timeout=20) as resp:
+            return resp.status, json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:  # type: ignore[name-defined]
+        return exc.code, json.loads(exc.read().decode("utf-8") or "{}")
 
 
 def _post(url: str, payload: dict):
@@ -278,11 +331,12 @@ def _post(url: str, payload: dict):
         return exc.code, json.loads(exc.read().decode("utf-8") or "{}")
 
 
-def test_web_admin_http_api(tmp_path):
-    asyncio.run(_http_scenario(tmp_path))
+def test_web_admin_http_api(tmp_path, monkeypatch):
+    asyncio.run(_http_scenario(tmp_path, monkeypatch))
 
 
-async def _http_scenario(tmp_path):
+async def _http_scenario(tmp_path, monkeypatch):
+    monkeypatch.setattr(web_admin, "PDDClient", _FakeClient)
     config = _temp_config(tmp_path)
     config.server.host = "127.0.0.1"
     config.server.port = 0  # 随机端口，避免与本机正在运行的面板冲突
@@ -314,6 +368,30 @@ async def _http_scenario(tmp_path):
         assert status == 200, result
         shop = next(item for item in result["shops"] if item["id"] == "shop-a")
         assert shop["name"] == "A店（女装）" and shop["enabled"] is False
+
+        # 网页 Cookie 登录 -> 导出登录码 -> 退出 -> 导入登录码
+        status, result = await asyncio.to_thread(
+            _post, base + "api/login/cookie", {"shop_id": "shop-a", "cookie": MOCK_COOKIE}
+        )
+        assert status == 200 and result["session_valid"] is True, result
+        status, exported = await asyncio.to_thread(
+            _get, base + "api/login/export?shop_id=shop-a"
+        )
+        assert status == 200 and exported["code"].startswith("PDDCS1."), exported
+        status, result = await asyncio.to_thread(
+            _post, base + "api/login/logout", {"shop_id": "shop-a"}
+        )
+        assert status == 200, result
+        status, result = await asyncio.to_thread(
+            _post,
+            base + "api/login/import",
+            {"shop_id": "shop-a", "text": exported["code"]},
+        )
+        assert status == 200 and result["session_valid"] is True, result
+        status, missing = await asyncio.to_thread(
+            _get, base + "api/login/export?shop_id=not-exist"
+        )
+        assert status == 400
 
         # 保存设置（回复行为）
         status, result = await asyncio.to_thread(

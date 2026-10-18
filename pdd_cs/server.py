@@ -130,7 +130,7 @@ class DashboardServer:
         auth_token = (config.server.auth_token or "").strip()
 
         class Handler(BaseHTTPRequestHandler):
-            server_version = "pdd-cs/1.4"
+            server_version = "pdd-cs/1.5"
 
             def log_message(self, fmt: str, *args) -> None:  # noqa: A003
                 logger.debug("dashboard: " + fmt, *args)
@@ -336,6 +336,19 @@ class DashboardServer:
                 if path == "/api/login/capability":
                     self._send_json({"ok": True, **admin.capability()})
                     return
+                if path == "/api/login/export":
+                    shop_id = (query.get("shop_id", [""])[0] or "").strip()
+                    if not shop_id:
+                        self._send_json({"error": "缺少 shop_id 参数"}, status=400)
+                        return
+                    try:
+                        self._send_json(admin.export_bundle(shop_id))
+                    except SettingsError as exc:
+                        self._send_json({"error": str(exc)}, status=400)
+                    except Exception as exc:  # noqa: BLE001
+                        logger.exception("导出登录态失败")
+                        self._send_json({"error": f"导出失败：{exc}"}, status=500)
+                    return
                 if path.startswith("/api/login/sessions/"):
                     session_id = path.rsplit("/", 1)[-1]
                     try:
@@ -500,6 +513,13 @@ class DashboardServer:
                 if path == "/api/login/cookie":
                     result = admin.cookie_login(
                         str(data.get("shop_id") or ""), str(data.get("cookie") or "")
+                    )
+                    reload_result = self._reload()
+                    self._send_json({"ok": True, **result, "reload": reload_result})
+                    return
+                if path == "/api/login/import":
+                    result = admin.import_bundle(
+                        str(data.get("shop_id") or ""), str(data.get("text") or "")
                     )
                     reload_result = self._reload()
                     self._send_json({"ok": True, **result, "reload": reload_result})

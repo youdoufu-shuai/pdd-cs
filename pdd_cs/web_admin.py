@@ -6,12 +6,15 @@
 """
 from __future__ import annotations
 
+import base64
 import copy
+import json
 import logging
 import re
 import threading
 import time
 import uuid
+import zlib
 from pathlib import Path
 from typing import Any, Optional
 
@@ -22,6 +25,7 @@ from .config import Config, PROJECT_ROOT
 from .engine.ai import LLMClient, LLMError
 from .pdd.api import PDDClient, PDDSessionExpired
 from .pdd.auth import (
+    CookieBundle,
     CookieError,
     CookieStore,
     cookie_age_hours,
@@ -29,12 +33,87 @@ from .pdd.auth import (
     validate_cookies,
 )
 from .pdd.cdp_login import LoginError, find_chrome, login_with_browser
+from .utils import now_beijing
 
 logger = logging.getLogger("pdd_cs.web_admin")
 
 SHOP_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
 KNOWLEDGE_FILE_RE = re.compile(r"^[\w\u4e00-\u9fa5-]{1,48}\.md$")
 MASK = "******"
+
+#: 登录态导出码前缀（单行文本，方便从本机复制到服务器）
+LOGIN_CODE_PREFIX = "PDDCS1."
+LOGIN_BUNDLE_FORMAT = "pdd-cs-login"
+LOGIN_BUNDLE_VERSION = 1
+MAX_LOGIN_IMPORT_CHARS = 200_000
+
+
+def encode_login_bundle(payload: dict[str, Any]) -> str:
+    """把登录态 payload 压缩成单行「登录码」。"""
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    packed = zlib.compress(raw, 9)
+    body = base64.urlsafe_b64encode(packed).decode("ascii").rstrip("=")
+    return LOGIN_CODE_PREFIX + body
+
+
+def decode_login_code(code: str) -> dict[str, Any]:
+    text = (code or "").strip()
+    if not text.startswith(LOGIN_CODE_PREFIX):
+        raise SettingsError("登录码格式不正确：应以 PDDCS1. 开头")
+    body = text[len(LOGIN_CODE_PREFIX):]
+    try:
+        padded = body + "=" * (-len(body) % 4)
+        raw = zlib.decompress(base64.urlsafe_b64decode(padded.encode("ascii")))
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001 - 登录码来自用户粘贴，统一转成可读错误
+        raise SettingsError("登录码无法解析，请重新从本机面板导出") from exc
+    if not isinstance(payload, dict):
+        raise SettingsError("登录码内容格式不正确")
+    return payload
+
+
+def decode_login_text(text: str) -> tuple[dict[str, str], dict[str, Any]]:
+    """解析「登录码 / 导出文件 / Cookie 文件 / Cookie 文本」，返回 (cookies, 元信息)。"""
+    raw = (text or "").strip()
+    if not raw:
+        raise SettingsError("请粘贴登录码，或选择从本机导出的登录态文件")
+    if len(raw) > MAX_LOGIN_IMPORT_CHARS:
+        raise SettingsError("登录态内容过大（超过 200KB），请确认文件是否正确")
+
+    payload: dict[str, Any] = {}
+    if raw.startswith(LOGIN_CODE_PREFIX):
+        payload = decode_login_code(raw)
+    else:
+        try:
+            loaded = json.loads(raw)
+        except json.JSONDecodeError:
+            try:
+                return parse_cookie_text(raw), {}
+            except CookieError as exc:
+                raise SettingsError(str(exc)) from exc
+        if not isinstance(loaded, dict):
+            raise SettingsError("无法识别登录态内容：请粘贴登录码、导出的 JSON 文件或 Cookie")
+        if isinstance(loaded.get("cookies"), dict):
+            payload = loaded
+        elif all(isinstance(value, (str, int, float)) for value in loaded.values()):
+            # 直接是 {"PASS_ID": "...", "MSA": "..."} 形式的 Cookie 字典
+            try:
+                return parse_cookie_text(raw), {}
+            except CookieError as exc:
+                raise SettingsError(str(exc)) from exc
+        else:
+            raise SettingsError("无法识别登录态内容：文件里没有 cookies 字段")
+
+    version = payload.get("version")
+    if version is not None and int(version) > LOGIN_BUNDLE_VERSION:
+        raise SettingsError("登录态版本比当前程序新，请先升级服务器上的 pdd-cs")
+    cookies = payload.get("cookies")
+    if not isinstance(cookies, dict) or not cookies:
+        raise SettingsError("登录态里没有可用的 Cookie，请重新从本机导出")
+    normalized = {str(key): str(value) for key, value in cookies.items() if str(key)}
+    if not normalized:
+        raise SettingsError("登录态里没有可用的 Cookie，请重新从本机导出")
+    return normalized, payload
 
 
 class SettingsError(ValueError):
@@ -642,6 +721,99 @@ class LoginManager:
             raise SettingsError(f"Cookie 校验失败：{exc}") from exc
         except Exception as exc:  # noqa: BLE001 - 网络受限时保留 Cookie，让用户稍后重试
             result["warnings"] = problems + [f"登录态暂时无法校验（网络/风控原因）：{exc}"]
+        return result
+
+    # -- 登录态导出 / 导入（本机登录 → 服务器免 Chrome） ----------------
+    def export_bundle(self, shop_id: str) -> dict[str, Any]:
+        profile = self._profile(shop_id)
+        store = CookieStore(profile.cookie_file)
+        try:
+            bundle = store.load()
+        except CookieError as exc:
+            raise SettingsError(f"读取登录态失败：{exc}") from exc
+        if not bundle or not bundle.cookies:
+            raise SettingsError(
+                "该店铺还没有登录态。请先在本地电脑点「扫码登录」或粘贴 Cookie，再导出。"
+            )
+        payload = {
+            "format": LOGIN_BUNDLE_FORMAT,
+            "version": LOGIN_BUNDLE_VERSION,
+            "shop_id": profile.id,
+            "shop_name": bundle.shop_name or profile.display_name,
+            "user_name": bundle.user_name,
+            "saved_at": bundle.saved_at,
+            "exported_at": now_beijing().strftime("%Y-%m-%d %H:%M:%S"),
+            "cookies": bundle.cookies,
+        }
+        return {
+            "ok": True,
+            "shop_id": profile.id,
+            "shop_name": payload["shop_name"],
+            "saved_at": payload["saved_at"],
+            "cookies": len(bundle.cookies),
+            "code": encode_login_bundle(payload),
+            "file_text": json.dumps(payload, ensure_ascii=False, indent=2),
+            "filename": f"pdd-login-{profile.id}.json",
+            "warning": "登录态等同于账号密码：请勿发给他人；导入服务器后建议删除导出的文件。",
+        }
+
+    def import_bundle(self, shop_id: str, text: str) -> dict[str, Any]:
+        profile = self._profile(shop_id)
+        cookies, meta = decode_login_text(text)
+        problems = validate_cookies(cookies)
+        fatal = [item for item in problems if "未找到登录态" in item]
+        if fatal:
+            raise SettingsError("；".join(fatal))
+        warnings = list(problems)
+        source_shop = str(meta.get("shop_id") or "").strip()
+        if source_shop and source_shop != profile.id:
+            warnings.append(f"这份登录态来自店铺「{source_shop}」，已导入到当前店铺「{profile.id}」")
+
+        bundle = CookieBundle(
+            cookies=cookies,
+            saved_at=str(meta.get("saved_at") or now_beijing().strftime("%Y-%m-%d %H:%M:%S")),
+            shop_name=str(meta.get("shop_name") or ""),
+            user_name=str(meta.get("user_name") or ""),
+        )
+        store = CookieStore(profile.cookie_file)
+        store.save(bundle)
+
+        result: dict[str, Any] = {
+            "ok": True,
+            "imported": True,
+            "cookies": len(cookies),
+            "warnings": warnings,
+            "shop_name": bundle.shop_name,
+            "source_shop": source_shop,
+            "session_valid": False,
+        }
+        shop_cfg = self.config.for_shop(profile)
+        client = PDDClient(
+            cookies,
+            base_url=shop_cfg.pdd.base_url,
+            user_agent=shop_cfg.pdd.user_agent,
+            timeout=15,
+            max_retries=1,
+        )
+        try:
+            info = client.validate_session()
+            result["session_valid"] = True
+            result["shop_name"] = str(info.get("mall_name") or info.get("mallName") or "")
+            if result["shop_name"] and result["shop_name"] != bundle.shop_name:
+                bundle.shop_name = result["shop_name"]
+                store.save(bundle)
+        except PDDSessionExpired as exc:
+            try:
+                profile.cookie_file.unlink()
+            except OSError:
+                pass
+            raise SettingsError(
+                f"导入的登录态已失效（{exc}）。请在本地电脑重新扫码登录后再导出。"
+            ) from exc
+        except Exception as exc:  # noqa: BLE001 - 服务器网络/风控受限时先保留，稍后重试
+            result["warnings"] = warnings + [
+                f"登录态暂时无法校验（服务器网络/风控原因）：{exc}"
+            ]
         return result
 
 
