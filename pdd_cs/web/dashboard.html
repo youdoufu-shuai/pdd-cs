@@ -248,6 +248,18 @@
   .migration-steps{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.9}
   .migration-steps b{color:var(--ink-2)}
   .migration-steps li{margin:3px 0}
+  .style-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin:14px 16px 0}
+  .style-tile{border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:#fff;
+    cursor:pointer;text-align:left;transition:all .15s;font-family:inherit}
+  .style-tile:hover{border-color:#bfdbfe;background:#f8fbff}
+  .style-tile.active{border-color:#2563eb;background:linear-gradient(180deg,#f5f9ff,#fff);
+    box-shadow:0 0 0 3px rgba(37,99,235,.10)}
+  .style-tile .name{font-size:13px;font-weight:650;display:flex;align-items:center;gap:6px;color:var(--ink)}
+  .style-tile .dot3{width:7px;height:7px;border-radius:50%;flex:none}
+  .style-tile .desc{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:5px}
+  .style-preview{white-space:pre-wrap;max-height:260px;overflow:auto;background:#f8fafc;
+    border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:11.5px;
+    line-height:1.75;color:#334155;font-family:ui-monospace,Consolas,"Courier New",monospace}
   @media (max-width:900px){.form-grid{grid-template-columns:1fr}.tabs{padding:10px 16px 0}}
 
 </style>
@@ -318,6 +330,7 @@
     </div>
     <div class="guide-actions">
       <button class="ghost" id="copy-login-btn">复制登录命令</button>
+      <button class="ghost" id="guide-style-btn">一键适配 AI 客服风格</button>
       <button class="ghost" id="guide-tips-btn">查看使用提示</button>
       <span class="meta">没有店铺？可以先用演示模式体验：<b>python scripts/demo.py</b></span>
     </div>
@@ -578,6 +591,26 @@
       <h2>话术与知识库</h2>
       <span class="hint">改动保存后立即生效，会自动做平台规则检查</span>
     </div>
+
+    <section class="card" data-tone="violet" id="style-card" style="margin-bottom:16px">
+      <div class="card-head"><h3>AI 客服风格 · 一键适配</h3><span class="meta">选风格 → 自动生成人设和默认回复</span></div>
+      <div class="style-grid" id="style-grid"><div class="empty">加载中…</div></div>
+      <div class="form-grid">
+        <label class="field"><span>店铺名称（用于话术）</span><input type="text" id="style-shop-name" placeholder="本店"/></label>
+        <label class="field"><span>店铺类型</span><select id="style-shop-type"></select></label>
+        <label class="field"><span>称呼客户</span><select id="style-address"></select></label>
+        <label class="field"><span>表情符号</span><select id="style-emoji"></select></label>
+        <label class="field full"><span>语气示例（可选，粘贴 1–3 句你平时回复客户的话，AI 会模仿）</span><textarea id="style-examples" rows="3" placeholder="例如：亲，在的～您先别急，我帮您看下物流"></textarea></label>
+      </div>
+      <div class="settings-section">
+        <div class="btn-row">
+          <button id="style-apply-btn">一键适配并保存</button>
+          <span class="meta" id="style-state">选择一种风格即可</span>
+        </div>
+        <div class="help-list" id="style-result" style="display:none"></div>
+      </div>
+    </section>
+
     <div class="grid" style="grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr)">
       <div class="col-main">
         <section class="card" data-tone="amber">
@@ -688,7 +721,7 @@
 <div class="toast" id="toast"></div>
 
 <footer>
-  <span>pdd-cs v1.7</span>
+  <span>pdd-cs v1.8</span>
   <span class="sep">|</span>
   <span>接口：<a href="api/status" target="_blank">status</a> · <a href="api/pending" target="_blank">pending</a> · <a href="api/insights" target="_blank">insights</a> · <a href="api/qc" target="_blank">qc</a> · <a href="api/risk" target="_blank">risk</a></span>
   <span class="sep">|</span>
@@ -1620,6 +1653,9 @@ $('test-alert-btn')?.addEventListener('click', async () => {
 });
 
 // ---------- 话术与知识库 ----------
+let styleOptions = null;
+let selectedStyle = 'warm';
+
 async function loadContent() {
   try {
     const persona = await apiGet('api/content/persona');
@@ -1633,10 +1669,107 @@ async function loadContent() {
     const rules = await apiGet('api/rules/keywords');
     keywordRows = rules.rules || [];
     renderKeywords();
+    await loadStyleOptions();
   } catch (e) {
     toast('加载话术/知识库失败：' + e.message, 'err');
   }
 }
+
+async function loadStyleOptions() {
+  try {
+    styleOptions = await apiGet('api/content/style/options');
+    renderStyleOptions(styleOptions);
+  } catch (e) {
+    const grid = $('style-grid');
+    if (grid) grid.innerHTML = '<div class="empty">风格选项加载失败：' + esc(e.message) + '</div>';
+  }
+}
+
+function renderStyleOptions(data) {
+  const grid = $('style-grid');
+  const presets = data.presets || [];
+  if (!presets.length) { grid.innerHTML = '<div class="empty">暂时没有可用风格</div>'; return; }
+  if (!presets.some(item => item.id === selectedStyle)) selectedStyle = presets[0].id;
+  grid.innerHTML = presets.map(item =>
+    '<button type="button" class="style-tile ' + (item.id === selectedStyle ? 'active' : '') + '" data-style="' + esc(item.id) + '">' +
+    '<span class="name"><span class="dot3" style="background:' + esc(item.color || '#2563eb') + '"></span>' + esc(item.name) + '</span>' +
+    '<span class="desc">' + esc(item.tagline || item.description || '') + '</span></button>'
+  ).join('');
+  grid.querySelectorAll('.style-tile').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedStyle = btn.dataset.style;
+      grid.querySelectorAll('.style-tile').forEach(item => item.classList.toggle('active', item === btn));
+      const preset = (styleOptions.presets || []).find(item => item.id === selectedStyle);
+      if (preset) $('style-state').textContent = '已选择「' + preset.name + '」，点下方按钮应用';
+    });
+  });
+  const typeSelect = $('style-shop-type');
+  if (typeSelect && !typeSelect.options.length) {
+    (data.shop_types || []).forEach(value => typeSelect.add(new Option(value, value)));
+  }
+  const addressSelect = $('style-address');
+  if (addressSelect && !addressSelect.options.length) {
+    (data.addresses || []).forEach(item => addressSelect.add(new Option(item.label, item.id)));
+  }
+  const emojiSelect = $('style-emoji');
+  if (emojiSelect && !emojiSelect.options.length) {
+    (data.emojis || []).forEach(item => emojiSelect.add(new Option(item.label, item.id)));
+    emojiSelect.value = 'some';
+  }
+  const nameInput = $('style-shop-name');
+  if (nameInput && !nameInput.value && currentShops.length) {
+    nameInput.value = currentShops[0].shop_name || currentShops[0].name || '';
+  }
+  const preset = (styleOptions.presets || []).find(item => item.id === selectedStyle);
+  if (preset && $('style-state').textContent === '选择一种风格即可') {
+    $('style-state').textContent = '已选择「' + preset.name + '」，点下方按钮应用';
+  }
+}
+
+$('style-apply-btn')?.addEventListener('click', async () => {
+  const button = $('style-apply-btn');
+  const resultBox = $('style-result');
+  if (!styleOptions) { toast('风格选项还没加载完，请稍后再试', 'err'); return; }
+  button.disabled = true;
+  button.textContent = '正在生成…';
+  $('style-state').textContent = '正在生成客服人设和默认回复…';
+  try {
+    const result = await apiPost('api/content/style/apply', {
+      style: selectedStyle,
+      shop_name: $('style-shop-name').value.trim(),
+      shop_type: $('style-shop-type').value,
+      address: $('style-address').value,
+      emoji: $('style-emoji').value,
+      examples: $('style-examples').value
+    });
+    $('persona-text').value = result.persona || '';
+    $('persona-state').textContent = '已由一键风格更新';
+    $('style-state').textContent = '✅ 已应用「' + result.style_name + '」' +
+      (result.backup ? '（原人设已备份）' : '');
+    resultBox.style.display = '';
+    resultBox.innerHTML = '<b>已自动完成：</b><br/>' +
+      '· 生成并保存客服人设（' + (result.persona || '').length + ' 字）<br/>' +
+      '· 默认回复：' + esc(result.default_reply || '') + '<br/>' +
+      '· 单条字数上限：' + (result.max_chars || '') + ' 字' +
+      (result.warnings && result.warnings.length ? '<br/>⚠️ ' + esc(result.warnings.join('；')) : '') +
+      '<div class="style-preview" style="margin-top:10px">' + esc((result.persona || '').slice(0, 600)) + '</div>';
+    toast('AI 客服风格已一键适配');
+  } catch (e) {
+    $('style-state').textContent = '应用失败：' + e.message;
+    toast(e.message, 'err');
+  } finally {
+    button.disabled = false;
+    button.textContent = '一键适配并保存';
+  }
+});
+
+$('guide-style-btn')?.addEventListener('click', () => {
+  switchView('content');
+  setTimeout(() => {
+    const card = $('style-card');
+    if (card) card.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }, 200);
+});
 function renderKnowledgeFiles(files) {
   const box = $('knowledge-files');
   if (!files.length) { box.innerHTML = '<div class="empty">还没有知识库文件</div>'; return; }

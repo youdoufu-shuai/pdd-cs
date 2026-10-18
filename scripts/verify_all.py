@@ -1352,6 +1352,32 @@ async def main(verbose: bool = False) -> int:
 
         await check("Chrome 自动检测 / 一键安装命令", _chrome_tool)
 
+        async def _web_style_one_click():
+            options = await asyncio.to_thread(_web_get, "api/content/style/options")
+            assert len(options.get("presets", [])) >= 5, options
+            applied = await asyncio.to_thread(
+                _web_post,
+                "api/content/style/apply",
+                {
+                    "style": "patient",
+                    "shop_name": "验证小店",
+                    "shop_type": "母婴",
+                    "address": "you",
+                    "emoji": "some",
+                    "examples": "您好，别着急，我帮您看下订单",
+                },
+            )
+            assert applied.get("style_name") == "耐心售后", applied
+            assert "验证小店" in applied.get("persona", ""), applied
+            persona = await asyncio.to_thread(_web_get, "api/content/persona")
+            assert "验证小店" in persona.get("text", ""), persona
+            settings = await asyncio.to_thread(_web_get, "api/settings")
+            behavior = settings["settings"]["behavior"]
+            assert behavior["default_reply"] == applied["default_reply"], behavior
+            return "5 种风格可选；一键生成人设、默认回复和字数并立即生效"
+
+        await check("AI 客服风格一键适配", _web_style_one_click)
+
         async def _web_settings_effect():
             # 改默认回复
             result = await asyncio.to_thread(

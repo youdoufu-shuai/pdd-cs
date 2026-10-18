@@ -41,6 +41,7 @@ from .web_admin import (
     SettingsError,
     add_shop,
     apply_settings,
+    apply_style,
     delete_shop,
     delete_shop_cookie,
     list_knowledge,
@@ -50,6 +51,7 @@ from .web_admin import (
     save_keywords,
     settings_snapshot,
     shop_snapshots,
+    style_options_snapshot,
     test_alert,
     test_llm,
     update_shop,
@@ -187,7 +189,7 @@ class DashboardServer:
         auth_token = (config.server.auth_token or "").strip()
 
         class Handler(BaseHTTPRequestHandler):
-            server_version = "pdd-cs/1.7"
+            server_version = "pdd-cs/1.8"
 
             def log_message(self, fmt: str, *args) -> None:  # noqa: A003
                 logger.debug("dashboard: " + fmt, *args)
@@ -575,6 +577,9 @@ class DashboardServer:
                     except SettingsError as exc:
                         self._send_json({"error": str(exc)}, status=404)
                     return
+                if path == "/api/content/style/options":
+                    self._send_json({"ok": True, **style_options_snapshot(service.config)})
+                    return
                 if path == "/api/content/persona":
                     self._send_json({"ok": True, "text": read_persona(service.config)})
                     return
@@ -766,6 +771,11 @@ class DashboardServer:
                 if path == "/api/login/logout":
                     removed = delete_shop_cookie(service.config, str(data.get("shop_id") or ""))
                     self._send_json({"ok": True, "removed": removed, **self._reload()})
+                    return
+                if path == "/api/content/style/apply":
+                    style_result = apply_style(service.config, data)
+                    reload_result = self._reload()
+                    self._send_json({**style_result, "reload": reload_result})
                     return
                 if path == "/api/content/persona":
                     write_persona(service.config, str(data.get("text") or ""))

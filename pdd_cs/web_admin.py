@@ -40,6 +40,13 @@ from .pdd.cdp_login import (
     find_chrome,
     login_with_browser,
 )
+from .style_presets import (
+    ADDRESS_OPTIONS,
+    EMOJI_OPTIONS,
+    build_persona,
+    get_preset,
+    style_options,
+)
 from .utils import now_beijing
 
 logger = logging.getLogger("pdd_cs.web_admin")
@@ -974,6 +981,90 @@ def read_persona(config: Config) -> str:
 def write_persona(config: Config, text: str) -> None:
     config.persona_file.parent.mkdir(parents=True, exist_ok=True)
     config.persona_file.write_text(text, encoding="utf-8")
+
+
+def style_options_snapshot(config: Config) -> dict[str, Any]:
+    """AI 客服风格一键适配的可选项 + 当前状态。"""
+    data = style_options()
+    data["current"] = {
+        "ai_enabled": config.llm.enabled,
+        "default_reply": config.behavior.default_reply,
+        "max_reply_chars": config.behavior.max_reply_chars,
+        "persona_path": str(config.persona_file),
+    }
+    return data
+
+
+def apply_style(config: Config, payload: dict[str, Any]) -> dict[str, Any]:
+    """一键生成并保存客服人设，同时调整默认回复与单条字数。"""
+    if not isinstance(payload, dict):
+        raise SettingsError("风格设置格式不正确")
+    style_id = str(payload.get("style") or "").strip()
+    try:
+        preset = get_preset(style_id)
+    except ValueError as exc:
+        raise SettingsError(str(exc)) from exc
+
+    shop_name = str(payload.get("shop_name") or "本店").strip()[:40] or "本店"
+    shop_type = str(payload.get("shop_type") or "通用").strip()
+    address_id = str(payload.get("address") or "you").strip()
+    address = next(
+        (item["text"] for item in ADDRESS_OPTIONS if item["id"] == address_id),
+        address_id if 0 < len(address_id) <= 8 else "您",
+    )
+    emoji_id = str(payload.get("emoji") or "some").strip()
+    if not any(item["id"] == emoji_id for item in EMOJI_OPTIONS):
+        emoji_id = "some"
+    examples = str(payload.get("examples") or "").strip()
+    if len(examples) > 2000:
+        examples = examples[:2000]
+
+    current = read_persona(config)
+    built = build_persona(
+        style_id=style_id,
+        shop_name=shop_name,
+        shop_type=shop_type,
+        address=address,
+        emoji_id=emoji_id,
+        examples=examples,
+        current_persona=current,
+        max_chars=preset["max_chars"],
+    )
+
+    backup = ""
+    if config.persona_file.exists():
+        backup_path = config.persona_file.with_name("persona.md.bak")
+        try:
+            backup_path.write_text(current, encoding="utf-8")
+            backup = str(backup_path)
+        except OSError:
+            backup = ""
+    write_persona(config, built["persona"])
+
+    settings_result = apply_settings(
+        config,
+        {
+            "behavior": {
+                "default_reply": built["default_reply"],
+                "max_reply_chars": built["max_chars"],
+            }
+        },
+    )
+    warnings = list(settings_result.get("warnings") or [])
+    if not config.llm.enabled:
+        warnings.append("AI 当前未启用：人设已保存，启用 AI 回复后会自动使用；关键词话术不受影响。")
+    return {
+        "ok": True,
+        "style_id": built["style_id"],
+        "style_name": built["style_name"],
+        "persona": built["persona"],
+        "backup": backup,
+        "preserved_sections": built["preserved_sections"],
+        "default_reply": built["default_reply"],
+        "max_chars": built["max_chars"],
+        "changed": settings_result.get("changed", []),
+        "warnings": warnings,
+    }
 
 
 def list_knowledge(config: Config) -> list[dict[str, Any]]:

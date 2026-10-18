@@ -287,6 +287,46 @@ def test_content_and_keywords(tmp_path):
     assert any(item["keywords"] == "测试关键字" for item in saved)
 
 
+def test_style_presets_one_click_apply(tmp_path):
+    config = _temp_config(tmp_path)
+    options = web_admin.style_options_snapshot(config)
+    assert len(options["presets"]) == 5
+    assert any(item["id"] == "warm" for item in options["presets"])
+
+    web_admin.write_persona(
+        config,
+        "# 旧人设\n\n## 必须做的事\n- 自定义：先确认店铺信息\n\n## 绝对不能做的事\n- 不承诺结果\n",
+    )
+    result = web_admin.apply_style(
+        config,
+        {
+            "style": "pro",
+            "shop_name": "数码小店",
+            "shop_type": "数码",
+            "address": "you",
+            "emoji": "none",
+            "examples": "您好，收到，我马上处理\n请提供订单号后四位",
+        },
+    )
+    assert result["style_name"] == "专业简洁"
+    assert "数码小店" in result["persona"]
+    assert "官方客服" not in result["persona"]
+    assert "您好，收到，我马上处理" in result["persona"]
+    assert "自定义：先确认店铺信息" in result["persona"]  # 保留原合规段落
+    assert result["backup"] and Path(result["backup"]).exists()
+
+    reloaded = Config.load(config.source)
+    assert reloaded.behavior.default_reply == result["default_reply"]
+    assert "专业简洁" in web_admin.read_persona(reloaded)
+
+    try:
+        web_admin.apply_style(config, {"style": "not-exists"})
+    except web_admin.SettingsError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("未知风格应被拒绝")
+
+
 # ---------------------------------------------------------------------------
 # 服务热重载
 # ---------------------------------------------------------------------------
@@ -428,6 +468,27 @@ async def _http_scenario(tmp_path, monkeypatch):
         assert status == 200, result
         status, persona = await asyncio.to_thread(_get, base + "api/content/persona")
         assert "网页人设" in persona["text"]
+
+        # AI 客服风格一键适配
+        status, options = await asyncio.to_thread(_get, base + "api/content/style/options")
+        assert status == 200 and len(options["presets"]) >= 5, options
+        status, applied = await asyncio.to_thread(
+            _post,
+            base + "api/content/style/apply",
+            {
+                "style": "warm",
+                "shop_name": "网页小店",
+                "shop_type": "女装",
+                "address": "bao",
+                "emoji": "rich",
+                "examples": "宝子，在的～我帮您看下物流",
+            },
+        )
+        assert status == 200, applied
+        assert applied["style_name"] == "亲切热情"
+        assert "网页小店" in applied["persona"] and "我帮您看下物流" in applied["persona"]
+        status, persona = await asyncio.to_thread(_get, base + "api/content/persona")
+        assert "网页小店" in persona["text"]
 
         status, result = await asyncio.to_thread(
             _post, base + "api/content/knowledge",

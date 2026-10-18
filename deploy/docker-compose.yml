@@ -18,7 +18,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    image: pdd-cs:1.7
+    image: pdd-cs:1.8
     container_name: pdd-cs
     restart: unless-stopped
     # SIGINT 优雅退出：关闭长连接、SQLite 落库、停面板
