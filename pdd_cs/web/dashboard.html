@@ -83,6 +83,28 @@
   button.ghost{background:#fff;color:var(--ink-2);border-color:var(--line-strong)}
   button.ghost:hover{background:#f1f5f9}
   .sim-row{display:flex;gap:8px;padding:12px 16px 8px}
+  .sim-examples{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:0 16px 10px}
+  .sim-examples .meta{font-size:11.5px;color:var(--muted)}
+  .sim-chip{padding:3px 8px;font-size:11.5px;line-height:18px;border-color:var(--line-strong);color:var(--ink-2);background:#f8fafc}
+  .sim-chip:hover{background:#eef4ff;border-color:#b9cdf7;color:var(--brand)}
+  .sim-result{display:flex;flex-direction:column;gap:10px;padding:0 16px 14px}
+  .sim-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+  .sim-action{font-size:12px;font-weight:600;line-height:22px;padding:0 9px;border-radius:4px;border:1px solid transparent}
+  .sim-action.good{color:var(--good);background:var(--good-bg);border-color:#c9e7d8}
+  .sim-action.warn{color:var(--warn);background:var(--warn-bg);border-color:#f0e2b6}
+  .sim-action.bad{color:var(--bad);background:var(--bad-bg);border-color:#f3cfcb}
+  .sim-action.info{color:var(--info);background:var(--info-bg);border-color:#dbe4ff}
+  .sim-action.neutral{color:var(--ink-2);background:#eef2f7;border-color:#dde4ee}
+  .sim-block{border:1px solid var(--line);border-radius:6px;background:#fbfcfe;padding:10px 12px}
+  .sim-block .label{font-size:11px;color:var(--muted);letter-spacing:.4px;margin-bottom:5px}
+  .sim-content{font-size:13px;line-height:1.7;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+  .sim-kv{display:grid;grid-template-columns:82px minmax(0,1fr);gap:6px 10px;font-size:12.5px;line-height:1.6}
+  .sim-kv dt{color:var(--muted)}
+  .sim-kv dd{margin:0;color:var(--ink-2);word-break:break-word}
+  .sim-raw{margin-top:2px}
+  .sim-raw summary{cursor:pointer;color:var(--muted);font-size:12px;padding:2px 0}
+  .sim-raw summary:hover{color:var(--brand)}
+  .sim-raw pre{margin:6px 0 0;padding:10px 12px;background:#f6f8fb;border:1px solid var(--line);border-radius:5px;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--ink-2);max-height:300px;overflow:auto}
   pre{margin:0;padding:0 16px 14px;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--ink-2);max-height:260px;overflow:auto}
   .note{padding:13px 16px;color:var(--muted);font-size:12px;line-height:1.7}
   .note strong{color:var(--ink-2);font-weight:600}
@@ -408,7 +430,17 @@
           <input type="text" id="sim-input" placeholder="输入客户一句话，例如：什么时候发货？"/>
           <button id="sim-btn">运行测试</button>
         </div>
-        <pre id="sim-output">等待输入…</pre>
+        <div class="sim-examples">
+          <span class="meta">快速试：</span>
+          <button class="ghost small sim-chip" data-sim-text="什么时候发货？">发货时间</button>
+          <button class="ghost small sim-chip" data-sim-text="我要退货">退货售后</button>
+          <button class="ghost small sim-chip" data-sim-text="可以刷单吗">违规词</button>
+          <button class="ghost small sim-chip" data-sim-text="我要投诉，还要退货">投诉转人工</button>
+          <button class="ghost small sim-chip" data-sim-text="今天天气不错">普通闲聊</button>
+        </div>
+        <div id="sim-output" class="sim-result" aria-live="polite">
+          <div class="empty">输入一句话，查看会怎么回复、是否转人工；只试运行，不会真的发消息。</div>
+        </div>
       </section>
       </details>
     </div>
@@ -1221,16 +1253,72 @@ async function load(){
   $('clock').textContent = new Date().toLocaleTimeString('zh-CN', {hour12:false});
 }
 
+const SIM_ACTIONS = {
+  keyword: ['命中话术', 'good'],
+  transfer: ['转人工', 'warn'],
+  filtered: ['合规拦截', 'bad'],
+  risk_blocked: ['风控拦截', 'bad'],
+  off_hours: ['非工作时间', 'info'],
+  default: ['默认回复', 'info'],
+  no_match: ['未命中', 'neutral'],
+  blacklisted: ['黑名单', 'bad']
+};
+const simFmt = v => Array.isArray(v) ? v.join('；') : (v && typeof v === 'object' ? JSON.stringify(v) : String(v ?? ''));
+
+function renderSim(data){
+  const out = $('sim-output');
+  if(!data || data.error){
+    out.innerHTML = '<div class="empty">测试失败：' + esc((data && data.error) || '服务返回为空') + '</div>';
+    return;
+  }
+  const meta = SIM_ACTIONS[data.action] || [data.action || '未知动作', 'neutral'];
+  const should = data.should_reply ? '<span class="tag good">自动发送</span>' : '<span class="tag warn">不自动发送</span>';
+  const content = String(data.content || '').trim();
+  const isTransfer = data.action === 'transfer';
+  const reasons = [];
+  if(data.reason) reasons.push(data.reason);
+  if(isTransfer && !data.violations?.length) reasons.push('售后/投诉/高风险问题会转人工，避免自动承诺。');
+  if(data.violations?.length) reasons.push('触发合规规则：' + data.violations.join('；'));
+  out.innerHTML = `
+    <div class="sim-top">
+      <span class="sim-action ${esc(meta[1])}">${esc(meta[0])}</span>
+      ${should}
+      <span class="tag neutral">${esc(data.reply_type || 'TEXT')}</span>
+      ${data.rule_id ? '<span class="tag info">规则 ' + esc(data.rule_id) + '</span>' : ''}
+    </div>
+    <div class="sim-block">
+      <div class="label">${content ? '会发送的内容' : '不会自动发送内容'}</div>
+      <div class="sim-content">${content ? esc(content) : '<span class="meta">' + (isTransfer ? '已转人工，客服接手处理。' : '本次没有自动回复内容。') + '</span>'}</div>
+    </div>
+    <dl class="sim-kv">
+      <dt>原因</dt><dd>${esc(reasons.join(' ') || '无')}</dd>
+      <dt>转接对象</dt><dd>${esc(simFmt(data.handoff) || '无')}</dd>
+      <dt>命中规则</dt><dd>${esc(data.rule_id || '未命中具体规则')}</dd>
+      <dt>合规检查</dt><dd>${esc(simFmt(data.compliance) || '无内容')}</dd>
+      <dt>违规项</dt><dd>${esc(simFmt(data.violations) || '无')}</dd>
+      <dt>店铺</dt><dd>${esc(data.shop_name || '当前店铺')}${data.shop_id ? '（' + esc(data.shop_id) + '）' : ''}</dd>
+    </dl>
+    <details class="sim-raw"><summary>查看原始 JSON</summary><pre>${esc(JSON.stringify(data, null, 2))}</pre></details>`;
+}
+
 async function simulate(){
   const text = $('sim-input').value.trim();
   if(!text) return;
-  $('sim-output').textContent = '推理中…';
+  const btn = $('sim-btn');
+  btn.disabled = true;
+  btn.textContent = '推理中…';
+  $('sim-output').innerHTML = '<div class="empty">推理中…</div>';
   try{
     const payload = {text};
     if(selectedShop !== 'all') payload.shop = selectedShop;
     const data = await fetch('api/simulate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r => r.json());
-    $('sim-output').textContent = JSON.stringify(data, null, 2);
-  }catch(e){ $('sim-output').textContent = '测试失败: ' + e; }
+    renderSim(data);
+  }catch(e){
+    $('sim-output').innerHTML = '<div class="empty">测试失败：' + esc(e) + '</div>';
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '运行测试';
+  }
 }
 
 $('shop-select').addEventListener('change', e => { selectedShop = e.target.value; load(); });
@@ -1247,6 +1335,12 @@ $('guide-tips-btn')?.addEventListener('click', () => {
 });
 $('sim-btn').addEventListener('click', simulate);
 $('sim-input').addEventListener('keydown', e => { if(e.key === 'Enter') simulate(); });
+document.querySelectorAll('[data-sim-text]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $('sim-input').value = btn.dataset.simText || '';
+    simulate();
+  });
+});
 $('conv-search-btn').addEventListener('click', load);
 $('conv-reset-btn').addEventListener('click', () => { $('conv-search').value = ''; load(); });
 $('conv-search').addEventListener('keydown', e => { if(e.key === 'Enter') load(); });
