@@ -684,9 +684,10 @@
         <div class="qr-wrap">
           <img id="login-qr-image" alt="拼多多登录二维码"/>
         </div>
-        <div class="qr-tip" id="login-qr-state">还没有生成二维码</div>
+        <div class="qr-tip" id="login-qr-state">还没有生成二维码；如过期或中途退出，点「重新生成二维码」</div>
         <div class="btn-row" style="margin-top:12px">
           <button id="start-qr-login-btn">生成登录二维码</button>
+          <button class="ghost small" id="refresh-qr-login-btn">重新生成二维码</button>
         </div>
       </div>
       <div id="login-cookie-panel" style="display:none">
@@ -737,7 +738,7 @@
 <div class="toast" id="toast"></div>
 
 <footer>
-  <span>pdd-cs v2.0</span>
+  <span>pdd-cs v2.0.1</span>
   <span class="sep">|</span>
   <span>接口：<a href="api/status" target="_blank">status</a> · <a href="api/pending" target="_blank">pending</a> · <a href="api/insights" target="_blank">insights</a> · <a href="api/qc" target="_blank">qc</a> · <a href="api/risk" target="_blank">risk</a></span>
   <span class="sep">|</span>
@@ -1351,14 +1352,20 @@ function openLoginModal(shopId, mode) {
   if (qrImage) { qrImage.src = ''; qrImage.style.display = 'none'; }
   if ($('login-qr-state')) $('login-qr-state').textContent = '还没有生成二维码';
   if ($('start-qr-login-btn')) $('start-qr-login-btn').disabled = false;
+  if ($('refresh-qr-login-btn')) $('refresh-qr-login-btn').disabled = false;
   const qrSwitch = $('switch-qr-login');
   if (qrSwitch) qrSwitch.style.display = (shopsCache.capability && shopsCache.capability.qr_login) ? '' : 'none';
   setLoginMode(mode);
 }
 function closeLoginModal() {
-  $('login-modal').classList.remove('show');
+  $('login-modal').style.display = 'none';
   if (loginState.timer) clearTimeout(loginState.timer);
   loginState.timer = null;
+  const sessionId = loginState.sessionId;
+  loginState.sessionId = '';
+  if (sessionId && loginState.mode === 'qr') {
+    apiPost('api/login/qr/cancel', {session_id: sessionId}).catch(() => {});
+  }
 }
 function setLoginMode(mode) {
   loginState.mode = mode;
@@ -1416,21 +1423,38 @@ function pollLogin() {
     }
   }, 1500);
 }
-$('start-qr-login-btn')?.addEventListener('click', async () => {
+async function startQrLogin(force) {
   const button = $('start-qr-login-btn');
+  const refreshBtn = $('refresh-qr-login-btn');
   button.disabled = true;
-  $('login-qr-state').textContent = '正在启动服务器 Chrome，请稍候…';
+  refreshBtn.disabled = true;
+  if (force && loginState.sessionId) {
+    try {
+      await apiPost('api/login/qr/cancel', {session_id: loginState.sessionId});
+    } catch (e) { /* 旧会话可能已结束 */ }
+    loginState.sessionId = '';
+    if (loginState.timer) clearTimeout(loginState.timer);
+  }
+  $('login-qr-state').textContent = force ? '正在结束旧会话并生成新二维码…' : '正在启动服务器 Chrome，请稍候…';
   try {
     const session = await apiPost('api/login/qr', {shop_id: loginState.shopId});
     loginState.sessionId = session.session_id;
-    $('login-qr-state').textContent = session.message || '正在生成二维码…';
+    if (session.reused) {
+      $('login-qr-state').textContent = '已恢复上一次的二维码；如无法扫描请点「重新生成二维码」';
+    } else {
+      $('login-qr-state').textContent = session.message || '正在生成二维码…';
+    }
     pollQrLogin();
   } catch (e) {
-    $('login-qr-state').textContent = '启动失败：' + e.message;
+    $('login-qr-state').textContent = '启动失败：' + e.message + '；可点「重新生成二维码」重试';
     button.disabled = false;
+    refreshBtn.disabled = false;
     toast(e.message, 'err');
   }
-});
+}
+
+$('start-qr-login-btn')?.addEventListener('click', () => startQrLogin(false));
+$('refresh-qr-login-btn')?.addEventListener('click', () => startQrLogin(true));
 
 function pollQrLogin() {
   if (!loginState.sessionId) return;
@@ -1443,16 +1467,21 @@ function pollQrLogin() {
         image.style.display = 'block';
       }
       $('login-qr-state').textContent = session.message +
-        (session.elapsed_seconds != null ? '（已等待 ' + Math.round(session.elapsed_seconds) + ' 秒）' : '');
+        (session.remaining_seconds != null ? '（剩余 ' + Math.round(session.remaining_seconds) + ' 秒）' : '');
       if (session.state === 'success') {
         $('login-qr-state').textContent = '登录成功，正在应用登录态…';
+        loginState.sessionId = '';
         await apiPost('api/service/reload', {});
         toast('扫码登录成功，店铺已上线');
         closeLoginModal();
         await loadShops(); load();
-      } else if (session.state === 'failed') {
+      } else if (session.state === 'failed' || session.state === 'cancelled') {
+        $('login-qr-state').textContent = (session.message || '扫码登录未完成') +
+          '；点「重新生成二维码」可以重新开始';
         $('start-qr-login-btn').disabled = false;
-        toast(session.message || '扫码登录失败', 'err');
+        $('refresh-qr-login-btn').disabled = false;
+        loginState.sessionId = '';
+        if (session.state === 'failed') toast(session.message || '扫码登录失败', 'err');
       } else {
         pollQrLogin();
       }

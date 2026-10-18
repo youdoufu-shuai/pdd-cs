@@ -230,6 +230,47 @@ def test_qr_login_session(tmp_path, monkeypatch):
     assert current["shop_name"] == "测试店铺"
 
 
+def test_qr_login_reuse_and_cancel(tmp_path, monkeypatch):
+    import time
+
+    config = _temp_config(tmp_path)
+    web_admin.add_shop(config, "shop-a", "A店")
+    config = Config.load(config.source)
+    monkeypatch.setattr(web_admin, "find_chrome", lambda: "/usr/bin/google-chrome")
+    monkeypatch.setattr(web_admin, "chrome_version", lambda path: "Google Chrome 155.0.0.0")
+    monkeypatch.setattr(web_admin, "display_available", lambda: False)
+
+    def fake_headless(store, **kwargs):
+        kwargs["on_qr"](b"\x89PNG fake")
+        cancel = kwargs["cancel_event"]
+        while not cancel.is_set():
+            time.sleep(0.02)
+        raise web_admin.LoginError("登录已取消")
+
+    monkeypatch.setattr(web_admin, "login_with_browser_headless", fake_headless)
+    manager = web_admin.LoginManager(config)
+    first = manager.start_qr_login("shop-a")
+    session_id = first["session_id"]
+    for _ in range(50):
+        current = manager.get_session(session_id)
+        if current["state"] == "waiting":
+            break
+        time.sleep(0.02)
+    assert current["state"] == "waiting"
+    assert current["qr_image"]
+
+    again = manager.start_qr_login("shop-a")
+    assert again["reused"] is True
+    assert again["session_id"] == session_id
+
+    cancelled = manager.cancel_qr_login(session_id)
+    assert cancelled["state"] == "cancelled"
+    for _ in range(50):
+        if manager.get_session(session_id)["state"] == "cancelled":
+            break
+        time.sleep(0.02)
+
+
 def test_browser_login_requires_chrome(tmp_path, monkeypatch):
     config = _temp_config(tmp_path)
 

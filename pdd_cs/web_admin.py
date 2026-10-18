@@ -11,6 +11,7 @@ import copy
 import json
 import logging
 import re
+import shutil
 import threading
 import time
 import uuid
@@ -51,6 +52,8 @@ from .style_presets import (
 from .utils import now_beijing
 
 logger = logging.getLogger("pdd_cs.web_admin")
+
+QR_LOGIN_TIMEOUT_SECONDS = 600
 
 SHOP_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
 KNOWLEDGE_FILE_RE = re.compile(r"^[\w\u4e00-\u9fa5-]{1,48}\.md$")
@@ -585,6 +588,7 @@ class LoginManager:
         self._sessions: dict[str, dict[str, Any]] = {}
         self._active_browser: Optional[str] = None
         self._active_qr: Optional[str] = None
+        self._qr_cancel_events: dict[str, threading.Event] = {}
         self._chrome_install: Optional[dict[str, Any]] = None
 
     # -- 能力检测 ---------------------------------------------------
@@ -755,6 +759,9 @@ class LoginManager:
             "shop_name": session.get("shop_name", ""),
             "qr_image": session.get("qr_image", ""),
             "elapsed_seconds": round(time.time() - session["started_at"], 1),
+            "remaining_seconds": max(
+                0, round(QR_LOGIN_TIMEOUT_SECONDS - (time.time() - session["started_at"]))
+            ),
         }
 
     # -- 浏览器扫码登录 ---------------------------------------------
@@ -840,6 +847,17 @@ class LoginManager:
                     self._active_browser = None
 
     # -- 服务器无头二维码扫码登录 -----------------------------------
+    def _cancel_qr_locked(self, session_id: str) -> None:
+        event = self._qr_cancel_events.get(session_id)
+        if event is not None:
+            event.set()
+        session = self._sessions.get(session_id)
+        if session and session.get("state") not in {"success", "failed", "cancelled"}:
+            session["state"] = "cancelled"
+            session["message"] = "已取消上一次二维码登录"
+        if self._active_qr == session_id:
+            self._active_qr = None
+
     def start_qr_login(self, shop_id: str) -> dict[str, Any]:
         profile = self._profile(shop_id)
         capability = self.capability()
@@ -848,48 +866,83 @@ class LoginManager:
                 "当前环境没有可用的 Chrome，无法生成登录二维码。"
                 "请先在「运行环境」安装 Chrome，或使用粘贴 Cookie/导入登录态。"
             )
+        reused_id = ""
         with self._lock:
-            if self._active_browser or self._active_qr:
-                raise SettingsError("已有登录窗口在等待操作，请先完成或等待超时")
-            session_id = uuid.uuid4().hex[:12]
-            self._sessions[session_id] = {
-                "session_id": session_id,
-                "shop_id": shop_id,
-                "mode": "qr",
-                "state": "starting",
-                "message": "正在启动服务器 Chrome…",
-                "started_at": time.time(),
-                "cookies": 0,
-                "shop_name": "",
-                "qr_image": "",
-            }
-            self._active_qr = session_id
+            if self._active_qr:
+                active = self._sessions.get(self._active_qr)
+                age = time.time() - float((active or {}).get("started_at") or 0)
+                if (
+                    active
+                    and active.get("shop_id") == shop_id
+                    and active.get("state") in {"starting", "waiting"}
+                    and age < QR_LOGIN_TIMEOUT_SECONDS
+                ):
+                    reused_id = self._active_qr
+                else:
+                    self._cancel_qr_locked(self._active_qr)
+            if not reused_id:
+                if self._active_browser:
+                    raise SettingsError("已有登录窗口在等待操作，请先关闭浏览器扫码窗口")
+                session_id = uuid.uuid4().hex[:12]
+                cancel_event = threading.Event()
+                self._qr_cancel_events[session_id] = cancel_event
+                self._sessions[session_id] = {
+                    "session_id": session_id,
+                    "shop_id": shop_id,
+                    "mode": "qr",
+                    "state": "starting",
+                    "message": "正在启动服务器 Chrome…",
+                    "started_at": time.time(),
+                    "cookies": 0,
+                    "shop_name": "",
+                    "qr_image": "",
+                }
+                self._active_qr = session_id
+        if reused_id:
+            result = self.get_session(reused_id)
+            result["reused"] = True
+            result["message"] = "已恢复上一次的登录二维码；如已过期请点「重新生成」"
+            return result
         thread = threading.Thread(
             target=self._run_qr_login,
-            args=(session_id, shop_id, profile),
+            args=(session_id, shop_id, profile, cancel_event),
             name=f"qr-login-{shop_id}",
             daemon=True,
         )
         thread.start()
         return self.get_session(session_id)
 
-    def _run_qr_login(self, session_id: str, shop_id: str, profile) -> None:
+    def cancel_qr_login(self, session_id: str = "") -> dict[str, Any]:
+        with self._lock:
+            target = session_id or self._active_qr or ""
+            if not target or target not in self._sessions:
+                return {"ok": True, "message": "没有正在进行的二维码登录"}
+            self._cancel_qr_locked(target)
+        result = self.get_session(target)
+        result["ok"] = True
+        return result
+
+    def _run_qr_login(
+        self, session_id: str, shop_id: str, profile, cancel_event: threading.Event
+    ) -> None:
         store = CookieStore(profile.cookie_file)
 
         def on_qr(image: bytes) -> None:
             self._update_session(
                 session_id,
                 state="waiting",
-                message="请用手机拼多多商家版 App 扫码登录，二维码会自动刷新",
+                message="请用手机拼多多商家版 App 扫码；二维码会自动刷新，过期可点「重新生成」",
                 qr_image=base64.b64encode(image).decode("ascii"),
             )
 
+        profile_dir = PROJECT_ROOT / "data" / "chrome-profile" / f"{shop_id}-{session_id}"
         try:
             cookies = login_with_browser_headless(
                 store,
-                timeout_seconds=600,
-                user_data_dir=PROJECT_ROOT / "data" / "chrome-profile" / shop_id,
+                timeout_seconds=QR_LOGIN_TIMEOUT_SECONDS,
+                user_data_dir=profile_dir,
                 on_qr=on_qr,
+                cancel_event=cancel_event,
             )
             shop_name = ""
             try:
@@ -913,12 +966,22 @@ class LoginManager:
                 shop_name=shop_name,
             )
         except LoginError as exc:
-            self._update_session(session_id, state="failed", message=str(exc))
+            cancelled = cancel_event.is_set() or str(exc) == "登录已取消"
+            self._update_session(
+                session_id,
+                state="cancelled" if cancelled else "failed",
+                message="已取消本次扫码登录" if cancelled else str(exc),
+            )
         except Exception as exc:  # noqa: BLE001
             logger.exception("服务器扫码登录异常")
             self._update_session(session_id, state="failed", message=f"登录失败：{exc}")
         finally:
+            try:
+                shutil.rmtree(profile_dir, ignore_errors=True)
+            except Exception:  # noqa: BLE001
+                pass
             with self._lock:
+                self._qr_cancel_events.pop(session_id, None)
                 if self._active_qr == session_id:
                     self._active_qr = None
 
