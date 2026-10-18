@@ -39,6 +39,7 @@ PDD_CS_STATUS_PATH: str = "/plateau/chat/set_csstatus"
 
 #: 当前登录客服信息
 PDD_USER_INFO_PATH: str = "/janus/api/new/userinfo"
+PDD_MALL_INFO_PATH: str = "/janus/api/userinfo"
 
 #: 店铺信息
 PDD_SHOP_INFO_PATH: str = "/earth/api/merchant/queryMerchantInfoByMallId"

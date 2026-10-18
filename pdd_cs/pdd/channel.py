@@ -49,6 +49,8 @@ class ChannelStats:
     connected_at: Optional[str] = None
     last_frame_at: Optional[str] = None
     last_error: str = ""
+    online: Optional[bool] = None
+    online_error: str = ""
     extra: dict = field(default_factory=dict)
 
 
@@ -205,10 +207,22 @@ class PDDChannel:
             if self.config.set_online:
                 try:
                     ok = await asyncio.to_thread(self.api.set_cs_status, True)
-                    if not ok:
-                        logger.warning("客服在线状态设置失败（不影响收消息，可稍后在后台手动上线）")
+                    self.stats.online = bool(ok)
+                    if ok:
+                        self.stats.online_error = ""
+                    else:
+                        self.stats.online_error = (
+                            getattr(self.api, "last_cs_status_error", "")
+                            or "客服在线状态设置失败（需要拼多多客服权限）"
+                        )
+                        logger.warning("客服在线状态设置失败: %s", self.stats.online_error)
                 except Exception as exc:  # noqa: BLE001
+                    self.stats.online = False
+                    self.stats.online_error = f"客服在线状态设置异常: {exc}"
                     logger.warning("客服在线状态设置异常: %s", exc)
+            else:
+                self.stats.online = None
+                self.stats.online_error = "" 
 
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(ws))
             try:
@@ -301,6 +315,8 @@ class PDDChannel:
             "received_events": self.stats.received_events,
             "reconnects": self.stats.reconnects,
             "last_error": self.stats.last_error,
+            "online": self.stats.online,
+            "online_error": self.stats.online_error,
         }
 
 

@@ -39,6 +39,7 @@ from ..constants import (
     PDD_CONVERSATIONS_PATH,
     PDD_CS_STATUS_PATH,
     PDD_GOODS_CARD_PATH,
+    PDD_MALL_INFO_PATH,
     PDD_MOVE_CONVERSATION_PATH,
     PDD_SEND_MESSAGE_PATH,
     PDD_SEND_TEXT_ERROR_CODE,
@@ -89,6 +90,7 @@ class PDDClient:
         logger_: Optional[logging.Logger] = None,
     ) -> None:
         self.cookies: dict[str, str] = dict(cookies or {})
+        self.last_cs_status_error: str = ""
         self.base_url = base_url.rstrip("/")
         self.user_agent = user_agent
         self.timeout = timeout
@@ -231,10 +233,30 @@ class PDDClient:
         return str(token)
 
     def get_user_info(self) -> dict[str, Any]:
-        """当前登录账号信息。"""
-        payload = self.request("GET", PDD_USER_INFO_PATH)
+        """当前登录账号信息。
+
+        拼多多 2026 版把该接口改成了 POST；旧版本/自建 Mock 仍兼容 GET。
+        """
+        payload: dict[str, Any]
+        try:
+            payload = self.request("POST", PDD_USER_INFO_PATH, json_data={}, retries=1)
+        except PDDError as exc:
+            text = str(exc)
+            if "405" not in text and "METHOD_NOT_ALLOWED" not in text:
+                raise
+            payload = self.request("GET", PDD_USER_INFO_PATH)
         result = payload.get("result") if isinstance(payload.get("result"), dict) else payload
         return result if isinstance(result, dict) else {}
+
+    def get_mall_info(self) -> dict[str, Any]:
+        """当前账号所属店铺信息（包含 mall_name，用于展示真实店名）。"""
+        try:
+            payload = self.request("POST", PDD_MALL_INFO_PATH, json_data={}, retries=1)
+        except PDDError:
+            return {}
+        result = payload.get("result") if isinstance(payload.get("result"), dict) else payload
+        mall = result.get("mall") if isinstance(result.get("mall"), dict) else {}
+        return mall if isinstance(mall, dict) else {}
 
     def get_shop_info(self, mall_id: str = "") -> dict[str, Any]:
         """店铺信息（需要 mall_id 时自动带上）。"""
@@ -250,6 +272,16 @@ class PDDClient:
         info = self.get_user_info()
         if not info:
             raise PDDError("登录态校验失败：接口未返回账号信息")
+        if not (info.get("mall_name") or info.get("mallName")):
+            try:
+                mall = self.get_mall_info()
+                name = mall.get("mall_name") or mall.get("mallName") or ""
+                if name:
+                    info["mall_name"] = str(name)
+                if not info.get("mall_id") and mall.get("mall_id"):
+                    info["mall_id"] = mall.get("mall_id")
+            except Exception:  # noqa: BLE001 - 店名不是关键路径
+                pass
         return info
 
     # ------------------------------------------------------------------
@@ -264,12 +296,23 @@ class PDDClient:
             },
             "client": "WEB",
         }
+        self.last_cs_status_error = ""
         try:
             payload = self.request("POST", PDD_CS_STATUS_PATH, json_data=data)
         except PDDError as exc:
+            self.last_cs_status_error = str(exc)
             self.log.warning("设置客服在线状态失败: %s", exc)
             return False
-        return bool(payload.get("success") is True)
+        if payload.get("success") is True:
+            return True
+        self.last_cs_status_error = str(
+            payload.get("error_msg")
+            or payload.get("errorMsg")
+            or payload.get("error_code")
+            or payload.get("errorCode")
+            or "客服在线状态设置失败"
+        )
+        return False
 
     def get_assign_cs_list(self) -> list[dict[str, str]]:
         """可分配的人工客服列表。"""

@@ -161,6 +161,29 @@
   .guide-status.ok{background:#ecfdf5;color:#047857}
   .guide-status.todo{background:#fff7ed;color:#b45309}
   .guide-actions{display:flex;gap:8px;padding:10px 16px 14px;flex-wrap:wrap;align-items:center}
+  .readiness{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--line);
+    border-radius:12px;padding:14px 16px;margin-bottom:16px;background:#fff}
+  .readiness .ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+    font-weight:700;font-size:15px;flex:none}
+  .readiness .body{flex:1;min-width:0}
+  .readiness .body strong{display:block;font-size:14px;margin-bottom:4px;color:var(--ink)}
+  .readiness .body div{font-size:12.5px;color:var(--muted);line-height:1.75}
+  .readiness .actions{display:flex;gap:8px;flex-wrap:wrap;flex:none;align-items:center}
+  .readiness.ok{background:#f0fdf9;border-color:#99f6e4}
+  .readiness.ok .ico{background:#ccfbf1;color:#0f766e}
+  .readiness.warn{background:#fffbeb;border-color:#fde68a}
+  .readiness.warn .ico{background:#fef3c7;color:#b45309}
+  .readiness.bad{background:#fff1f2;border-color:#fecdd3}
+  .readiness.bad .ico{background:#ffe4e6;color:#be123c}
+  details.advanced{border:1px solid var(--line);border-radius:10px;background:#fff;margin-bottom:16px;overflow:hidden}
+  details.advanced>summary{cursor:pointer;padding:12px 16px;font-size:13px;font-weight:600;color:var(--muted);
+    list-style:none;display:flex;align-items:center;gap:8px;user-select:none}
+  details.advanced>summary::-webkit-details-marker{display:none}
+  details.advanced>summary:before{content:'▸';font-size:12px;color:#94a3b8}
+  details.advanced[open]>summary:before{content:'▾'}
+  details.advanced>summary:hover{background:#f8fafc}
+  details.advanced .card{border:0;border-radius:0;box-shadow:none;margin:0}
+  details.advanced .card+.card{border-top:1px solid var(--line)}
   .bar{background:linear-gradient(180deg,#60a5fa,#2563eb)}
   .bar:nth-child(3n+2){background:linear-gradient(180deg,#5eead4,#0d9488)}
   .bar:nth-child(3n+3){background:linear-gradient(180deg,#c4b5fd,#7c3aed)}
@@ -308,6 +331,11 @@
     <h2>运营概览</h2>
     <span class="hint">数据每 <b id="refresh">5</b> 秒自动刷新 · HTTPS 安全访问</span>
   </div>
+  <div id="readiness" class="readiness" style="display:none">
+    <div class="ico" id="readiness-ico">!</div>
+    <div class="body"><strong id="readiness-title"></strong><div id="readiness-text"></div></div>
+    <div class="actions" id="readiness-actions"></div>
+  </div>
   <div class="kpis" id="kpis"></div>
 
   <section class="card" id="guide-card" data-tone="blue" style="margin-bottom:16px">
@@ -322,8 +350,8 @@
       <div class="guide-step" style="--step:#0d9488">
         <div class="n">② 检查配置</div>
         <div class="desc">AI Key、默认回复、营业时间、告警全部在网页里改，保存即生效。</div>
-        <code class="cmd">前往「系统设置」填写 AI / 告警</code>
-        <span class="guide-status ok" id="guide-config">已完成</span>
+        <code class="cmd" id="guide-config-cmd">前往「系统设置」填写 AI Key</code>
+        <span class="guide-status warn" id="guide-config">待配置 AI</span>
       </div>
       <div class="guide-step" style="--step:#d97706">
         <div class="n">③ 开启接待</div>
@@ -336,7 +364,7 @@
       <button class="ghost" id="copy-login-btn">复制登录命令</button>
       <button class="ghost" id="guide-style-btn">一键适配 AI 客服风格</button>
       <button class="ghost" id="guide-tips-btn">查看使用提示</button>
-      <span class="meta">没有店铺？可以先用演示模式体验：<b>python scripts/demo.py</b></span>
+      <span class="meta" id="guide-demo-hint">没有店铺？可以先用演示模式体验：<b>python scripts/demo.py</b></span>
     </div>
   </section>
 
@@ -367,6 +395,8 @@
         <div class="msg-list" id="detail-messages"></div>
       </section>
 
+      <details class="advanced">
+      <summary>高级：风控事件与决策测试台</summary>
       <section class="card" data-tone="rose">
         <div class="card-head"><h3>风控与合规事件</h3><span class="meta">发送前拦截 / 改写 / 转接情况</span></div>
         <div class="table" id="risk"></div>
@@ -380,6 +410,7 @@
         </div>
         <pre id="sim-output">等待输入…</pre>
       </section>
+      </details>
     </div>
 
     <aside class="col-side">
@@ -388,6 +419,8 @@
         <dl class="dl" id="info"></dl>
       </section>
 
+      <details class="advanced">
+      <summary>高级：运营洞察 / 质检 / 接待策略</summary>
       <section class="card" data-tone="teal">
         <div class="card-head"><h3>运营洞察</h3><span class="meta">最近 7 天</span></div>
         <div class="mini-title">近 24 小时进线</div>
@@ -419,6 +452,7 @@
           <br/><strong>规则可调。</strong>承诺拦截、敏感词、响应阈值在 <code>config/rules/</code> 与 <code>config/config.yaml</code> 维护。
         </div>
       </section>
+      </details>
     </aside>
     </div>
   </div><!-- /view-overview -->
@@ -446,9 +480,9 @@
       <aside class="col-side">
         <section class="card" data-tone="violet">
           <div class="card-head"><h3>登录方式说明</h3></div>
-          <div class="help-list">
+          <div class="help-list" id="login-method-help">
             <b>方式一：扫码登录（推荐）</b><br/>
-            点「扫码登录」会弹出一个独立的 Chrome 窗口，用手机扫码登录拼多多商家后台，成功后自动保存登录态。<br/><br/>
+            有桌面的电脑会弹出 Chrome 窗口扫码；服务器没有桌面时，点「服务器扫码登录」会把二维码显示在页面里。<br/><br/>
             <b>方式二：粘贴 Cookie</b><br/>
             在已登录拼多多商家后台的浏览器按 F12 → Network → 任意请求 → 复制请求头里的 Cookie 整行，粘贴进来。<br/><br/>
             <b>登录态过期怎么办？</b><br/>
@@ -456,15 +490,29 @@
           </div>
         </section>
         <section class="card" data-tone="amber">
-          <div class="card-head"><h3>服务器不用装 Chrome</h3><span class="meta">本机登录 → 服务器导入</span></div>
+          <div class="card-head"><h3>服务器扫码 / 登录态导入</h3><span class="meta">二选一</span></div>
           <div class="help-list">
+            <b>服务器已安装 Chrome：</b>直接点店铺卡片「服务器扫码登录」，二维码会显示在弹窗里。<br/><br/>
+            <b>也可以用登录态迁移：</b>
             <ol class="migration-steps">
-              <li><b>在你自己的电脑登录：</b>打开本地面板，点「扫码登录」（没有 Chrome 就粘贴 Cookie）。</li>
-              <li><b>导出登录态：</b>店铺卡片点「导出登录态」，复制登录码，或下载 JSON 文件。</li>
-              <li><b>在服务器导入：</b>打开服务器面板，同一店铺点「导入登录态」，粘贴登录码或上传文件。</li>
+              <li>在你自己的电脑登录拼多多商家后台，点「导出登录态」；</li>
+              <li>在服务器面板同一店铺点「导入登录态」，粘贴登录码或上传文件。</li>
             </ol>
-            导入成功后服务器会自动连接店铺，<b>全程不需要在服务器安装 Chrome</b>。
             登录态等同于账号密码，请只在自己的设备间传输，导入后删除导出文件。
+          </div>
+        </section>
+        <section class="card" data-tone="rose">
+          <div class="card-head"><h3>客服权限（必须）</h3><span class="meta">没有它收不到客户消息</span></div>
+          <div class="help-list">
+            拼多多只把客户消息推送给「有客服权限且在线」的账号。如果运行状态显示
+            <b>「已连接 · 待授权」</b>或接口返回<b>「没有聊天权限」</b>，按下面检查：
+            <ol class="migration-steps">
+              <li><b>子账号权限：</b>商家后台 → 店铺管理 → 子账号管理，给要用的账号勾选「客服」权限；</li>
+              <li><b>分流设置：</b>多多客服 → 客服工具 → 分流设置，确认该账号不在「不分流」名单；</li>
+              <li><b>在线状态：</b>多多客服 → 在线状态，确认账号在线；</li>
+              <li><b>重新登录：</b>用这个有客服权限的账号重新扫码/导入登录态，刷新面板应显示「在线接待」。</li>
+            </ol>
+            主账号不一定自动拥有客服权限；最稳的方式是新建一个客服子账号来登录。
           </div>
         </section>
         <section class="card" data-tone="rose">
@@ -738,7 +786,7 @@
 <div class="toast" id="toast"></div>
 
 <footer>
-  <span>pdd-cs v2.0.1</span>
+  <span>pdd-cs v2.1</span>
   <span class="sep">|</span>
   <span>接口：<a href="api/status" target="_blank">status</a> · <a href="api/pending" target="_blank">pending</a> · <a href="api/insights" target="_blank">insights</a> · <a href="api/qc" target="_blank">qc</a> · <a href="api/risk" target="_blank">risk</a></span>
   <span class="sep">|</span>
@@ -801,6 +849,7 @@ function renderShopSelect(status){
     currentShops.map(s => `<option value="${esc(s.shop_id)}">${esc(s.shop_name)}</option>`).join('');
   box.value = currentShops.some(s => s.shop_id === current) ? current : 'all';
   selectedShop = box.value;
+  box.style.display = currentShops.length <= 1 ? 'none' : '';
 }
 
 const KPI_ICONS = {
@@ -825,24 +874,138 @@ function renderKpis(s){
   $('kpis').innerHTML = cards.map(c => `<div class="kpi kpi-${c.tone}"><div class="ico">${c.icon}</div><div class="label">${esc(c.label)}</div><div class="value">${esc(c.value)}</div><div class="foot">${esc(c.foot)}</div></div>`).join('');
 }
 
+function friendlyError(text){
+  const raw = String(text || '').trim();
+  if(!raw) return '无';
+  if(/METHOD_NOT_ALLOWED|HTTP 405/.test(raw)) return '登录接口版本不兼容（已在新版修复）';
+  if(/没有聊天权限/.test(raw)) return '拼多多未授予客服权限：请用有客服权限的子账号登录';
+  if(/登录态校验失败/.test(raw)) return '登录态校验未通过，请重新登录';
+  if(/timeout|超时/i.test(raw)) return '请求超时';
+  return raw.length > 160 ? raw.slice(0,160) + '…' : raw;
+}
+
+function renderReadiness(status, s){
+  const el = $('readiness');
+  if(!el) return;
+  const shops = status.shops || [];
+  const anyCookie = shops.some(x => x.cookie_saved || x.cookie) || !!status.cookie;
+  const ch = s.channel || {};
+  const connected = !!ch.connected;
+  const online = ch.online;
+  const ai = !!(s.llm && s.llm.enabled);
+  let tone = '', title = '', text = '', actions = [];
+  if(!anyCookie){ el.style.display = 'none'; return; }
+  if(connected && online === false){
+    tone = 'bad';
+    title = '店铺已登录，但拼多多还没有给这个账号客服权限';
+    text = '接口返回：「' + friendlyError(ch.online_error || '没有聊天权限') +
+      '」。没有客服权限时收不到客户消息，也不会自动回复。请用有客服权限的子账号重新登录，' +
+      '或在商家后台给当前账号开通客服权限并加入分流。';
+    actions = [['去店铺与登录','shops'], ['复制开通步骤','copy_steps']];
+  } else if(connected && online === true && !ai){
+    tone = 'warn';
+    title = '店铺已在线，但 AI 未启用';
+    text = '目前只能用关键词和默认回复。填好 AI Key 并启用后，AI 才会按客服人设自动回复。';
+    actions = [['去配置 AI','settings'], ['去适配客服风格','content']];
+  } else if(connected && online === true && ai){
+    tone = 'ok';
+    title = '店铺在线，AI 已启用，正在自动接待';
+    text = '保持服务运行即可；有客户消息会出现在「会话监控」，售后/投诉会自动转人工。';
+  } else if(connected && (online === null || online === undefined)){
+    tone = 'warn';
+    title = '店铺已连接，正在确认客服在线状态';
+    text = '拼多多客服接口暂未返回在线状态；如果长时间不变化，请检查账号客服权限和在线状态。';
+    actions = [['查看店铺','shops']];
+  } else if(anyCookie && !connected){
+    tone = 'warn';
+    title = '店铺登录态已保存，正在重连';
+    text = '拼多多长连接尚未建立' + (ch.last_error ? '：' + friendlyError(ch.last_error) : '') +
+      '。可以点「重连」或检查登录态是否过期。';
+    actions = [['查看店铺','shops']];
+  } else {
+    el.style.display = 'none';
+    return;
+  }
+  el.className = 'readiness ' + tone;
+  el.style.display = 'flex';
+  $('readiness-ico').textContent = tone === 'ok' ? '✓' : (tone === 'bad' ? '!' : '…');
+  $('readiness-title').textContent = title;
+  $('readiness-text').textContent = text;
+  const box = $('readiness-actions');
+  box.innerHTML = '';
+  actions.forEach(([label, action]) => {
+    const btn = document.createElement('button');
+    btn.className = 'ghost small';
+    btn.textContent = label;
+    btn.dataset.action = action;
+    box.appendChild(btn);
+  });
+  box.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if(btn.dataset.action === 'copy_steps'){
+        const steps = [
+          '拼多多客服权限开通步骤：',
+          '1. 商家后台 → 店铺管理 → 子账号管理：给要用的账号勾选「客服」权限；',
+          '2. 多多客服 → 客服工具 → 分流设置：确认该账号不在「不分流」名单；',
+          '3. 多多客服 → 在线状态：确认该账号在线；',
+          '4. 用该账号重新登录拼多多商家后台，再回面板重新登录/导入登录态。'
+        ].join('\n');
+        await copyPlainText(steps);
+        toast('开通步骤已复制');
+      } else {
+        switchView(btn.dataset.action);
+      }
+    });
+  });
+}
+
 function renderGuide(status){
   const shops = status.shops || [];
   const total = shops.length || 1;
+  const logged = shops.filter(x => x.cookie_saved || x.cookie).length || (status.cookie ? 1 : 0);
   const connected = shops.filter(x => x.channel && x.channel.connected).length;
+  const onlineOk = shops.some(x => x.channel && x.channel.connected && x.channel.online === true);
+  const onlineBad = shops.some(x => x.channel && x.channel.connected && x.channel.online === false);
   const started = !!status.started;
+  const ai = !!(status.llm && status.llm.enabled);
   const loginEl = $('guide-login'), runEl = $('guide-run');
+  const configEl = $('guide-config');
   const cmdEl = $('guide-login-cmd');
-  if (cmdEl) cmdEl.textContent = shops.length > 1
-    ? '在「店铺与登录」里逐个店铺登录'
-    : '前往「店铺与登录」点扫码登录';
-  loginEl.textContent = connected > 0 ? `已连接 ${connected}/${total} 个店铺` : '等待登录';
-  loginEl.className = 'guide-status ' + (connected > 0 ? 'ok' : 'todo');
-  runEl.textContent = started ? '运行中' : '未启动';
-  runEl.className = 'guide-status ' + (started ? 'ok' : 'todo');
-  const failed = Object.keys(status.startup_errors || {}).length;
-  $('guide-meta').textContent = failed
-    ? `${failed} 个店铺启动失败，看「运行状态」`
-    : (started ? '服务运行中，保持页面打开即可监控' : '照着做即可，无需懂代码');
+  if (cmdEl) cmdEl.textContent = logged
+    ? '已登录；需要换账号时点「管理店铺」'
+    : (shops.length > 1 ? '在「店铺与登录」里逐个店铺登录' : '前往「店铺与登录」点扫码登录');
+  if (loginEl) {
+    loginEl.textContent = logged ? `已登录 ${logged}/${total}` : '等待登录';
+    loginEl.className = 'guide-status ' + (logged ? 'ok' : 'todo');
+  }
+  if (configEl) {
+    configEl.textContent = ai ? '已完成' : (logged ? '待配置 AI' : '待登录后配置');
+    configEl.className = 'guide-status ' + (ai ? 'ok' : 'warn');
+  }
+  const configCmd = $('guide-config-cmd');
+  if (configCmd) configCmd.textContent = ai ? 'AI 已启用；可继续检查默认回复和营业时间' : '前往「系统设置」填 AI Key';
+  if (runEl) {
+    if (onlineBad) { runEl.textContent = '待开通客服权限'; runEl.className = 'guide-status warn'; }
+    else if (onlineOk) { runEl.textContent = '在线接待'; runEl.className = 'guide-status ok'; }
+    else if (connected) { runEl.textContent = '已连接 · 待授权'; runEl.className = 'guide-status warn'; }
+    else { runEl.textContent = started ? '运行中' : '未启动'; runEl.className = 'guide-status ' + (started ? 'ok' : 'todo'); }
+  }
+  const loginBtn = $('copy-login-btn');
+  if (loginBtn) loginBtn.textContent = logged ? '管理店铺' : '去登录店铺';
+  const demoHint = $('guide-demo-hint');
+  if (demoHint) demoHint.style.display = shops.length ? 'none' : '';
+  if (onlineBad) {
+    $('guide-meta').textContent = '店铺已连接，但缺少拼多多客服权限';
+  } else if (logged && !ai) {
+    $('guide-meta').textContent = '店铺已登录；下一步配置 AI';
+  } else if (onlineOk) {
+    $('guide-meta').textContent = '店铺在线接待中，面板会自动刷新';
+  } else {
+    const failed = Object.keys(status.startup_errors || {}).length;
+    $('guide-meta').textContent = failed
+      ? `${failed} 个店铺启动失败，看「运行状态」`
+      : (started ? '服务运行中，保持页面打开即可监控' : '照着做即可，无需懂代码');
+  }
 }
 
 function renderShops(shops){
@@ -855,9 +1018,12 @@ function renderShops(shops){
   const cols = '1.4fr .9fr .8fr .8fr .8fr 1fr .8fr';
   $('shops').innerHTML = head + shops.map(s => {
     const ch = s.channel || {};
-    const tone = ch.connected ? 'good' : (ch.state === 'error' ? 'bad' : 'warn');
+    const tone = ch.connected ? (ch.online === false ? 'warn' : 'good') : (ch.state === 'error' ? 'bad' : 'warn');
+    const connLabel = ch.connected
+      ? (ch.online === false ? '已连接 · 待授权' : (ch.online === true ? '在线接待' : '已连接'))
+      : (STATE_LABEL[ch.state] || ch.state || '未知');
     return `<div class="tr" style="grid-template-columns:${cols}"><div class="cell-main"><div class="name">${esc(s.shop_name)}</div><div class="sub">${esc(s.shop_id)}</div></div>
-      <div><span class="tag ${tone}">${esc(STATE_LABEL[ch.state] || ch.state || '未知')}</span></div>
+      <div><span class="tag ${tone}">${esc(connLabel)}</span></div>
       <div class="num mono">${num(s.today.inbound_messages)}</div>
       <div class="num mono">${num(s.today.auto_replies)}</div>
       <div class="num mono">${num(s.today.transfers)}</div>
@@ -948,8 +1114,10 @@ function renderInfo(s){
     ['知识库', (s.knowledge?.snippets ?? 0) + ' 片段 / ' + (s.knowledge?.files ?? 0) + ' 文件'],
     ['规则数量', '关键词 ' + (s.rules?.keywords ?? 0) + ' · 转人工 ' + (s.rules?.transfers ?? 0) + ' · 黑名单 ' + (s.rules?.blacklist ?? 0)],
     ['登录态', s.cookie || '—'],
+    ['客服在线', ch.online === true ? '在线接待' : (ch.online === false ? '未授权 / 离线' : '确认中')],
+    ['在线错误', ch.online_error ? friendlyError(ch.online_error) : '无'],
     ['启动时间', s.started_at || '—'],
-    ['最近错误', s.last_error || '无'],
+    ['最近错误', friendlyError(s.last_error)],
   ];
   $('info').innerHTML = rows.map(([k,v]) => `<div class="row"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
 }
@@ -1012,11 +1180,14 @@ async function load(){
     $('shop').textContent = (s.shop || '未命名店铺') + ' · 启动于 ' + (s.started_at || '—');
     const ch = s.channel || {};
     const dot = $('conn-dot');
-    dot.className = 'dot ' + (ch.connected ? 'on' : (ch.state === 'error' ? 'err' : 'warn'));
+    if (ch.connected && ch.online === false) dot.className = 'dot warn';
+    else dot.className = 'dot ' + (ch.connected ? 'on' : (ch.state === 'error' ? 'err' : 'warn'));
     $('conn-text').textContent = status.setup_mode && status.shops_count === 0
-      ? '待配置店铺' : (STATE_LABEL[ch.state] || ch.state || '未知');
+      ? '待配置店铺'
+      : (ch.connected && ch.online === false ? '已连接 · 待客服授权'
+        : (ch.connected && ch.online === true ? '在线接待' : (STATE_LABEL[ch.state] || ch.state || '未知')));
     $('llm-pill').textContent = (s.llm && s.llm.enabled) ? ('AI · ' + s.llm.model) : 'AI 未启用';
-    renderKpis(s); renderShops(status.shops || []); renderInfo(s); renderPolicy(s); renderGuide(status);
+    renderKpis(s); renderShops(status.shops || []); renderInfo(s); renderPolicy(s); renderGuide(status); renderReadiness(status, s);
 
     const shopQuery = selectedShop === 'all' ? '' : '&shop=' + encodeURIComponent(selectedShop);
     const q = $('conv-search').value.trim();
@@ -1161,8 +1332,12 @@ function renderShopCards(payload) {
     const runtime = shop.runtime || {};
     const channel = runtime.channel || {};
     const connected = !!channel.connected;
-    const tone = !shop.enabled ? 'neutral' : (connected ? 'good' : (shop.cookie_saved ? 'warn' : 'bad'));
-    const statusText = !shop.enabled ? '已停用' : (connected ? '在线接待' : (shop.cookie_saved ? '等待重连' : '未登录'));
+    const online = channel.online;
+    const tone = !shop.enabled ? 'neutral'
+      : (connected ? (online === false ? 'warn' : 'good') : (shop.cookie_saved ? 'warn' : 'bad'));
+    const statusText = !shop.enabled ? '已停用'
+      : (connected ? (online === false ? '已连接 · 待授权' : (online === true ? '在线接待' : '已连接'))
+        : (shop.cookie_saved ? '等待重连' : '未登录'));
     const loginText = shop.cookie_saved
       ? ('已保存登录态' + (shop.cookie_age_hours != null ? '（' + shop.cookie_age_hours + ' 小时前）' : ''))
       : '还没有登录';
@@ -1177,7 +1352,9 @@ function renderShopCards(payload) {
     return '<div class="shop-card ' + (connected ? 'logged' : (shop.enabled ? 'offline' : 'disabled')) + '">' +
       '<div class="row1"><div><h4>' + esc(shop.name) + '</h4><div class="sid">店铺 ID：' + esc(shop.id) + '</div></div>' +
       '<span class="tag ' + tone + '">' + statusText + '</span></div>' +
-      '<div class="meta">' + esc(loginText) + '<br/>连接状态：' + (connected ? '已连接拼多多长连接' : '未连接') + '</div>' +
+      '<div class="meta">' + esc(loginText) + '<br/>连接状态：' +
+        esc(connected ? (online === false ? '已连接长连接，但客服权限未开通' : (online === true ? '已连接，在线接待' : '已连接长连接'))
+          : '未连接') + '</div>' +
       '<div class="actions">' +
       loginButton +
       '<button class="ghost small" data-act="cookie" data-shop="' + esc(shop.id) + '">粘贴 Cookie</button>' +
@@ -2023,8 +2200,6 @@ function renderLint(report) {
 }
 
 // 首次打开时更新新手引导按钮文字
-const guideBtn = $('copy-login-btn');
-if (guideBtn) guideBtn.textContent = '去登录店铺';
 const params = new URLSearchParams(location.search);
 const initialView = params.get('view') || (location.hash || '').replace('#', '');
 if (['overview', 'shops', 'settings', 'content'].includes(initialView)) switchView(initialView);

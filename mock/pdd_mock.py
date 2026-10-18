@@ -230,7 +230,17 @@ class MockPDDServer:
                 path = urlparse(self.path).path.rstrip("/") or "/"
                 body = self._body()
 
-                if path == "/chats/getToken":
+                if path == "/janus/api/new/userinfo":
+                    self._json({
+                        "success": True,
+                        "result": {"username": "mock-cs", "mall_name": server.shop_name, "mall_id": server.mall_id},
+                    })
+                elif path == "/janus/api/userinfo":
+                    self._json({
+                        "success": True,
+                        "result": {"mall": {"mall_name": server.shop_name, "mall_id": server.mall_id}},
+                    })
+                elif path == "/chats/getToken":
                     server.state.token_requests += 1
                     self._json({"success": True, "token": "mock-token"})
                 elif path == "/plateau/chat/send_message":

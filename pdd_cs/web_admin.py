@@ -956,6 +956,11 @@ class LoginManager:
                 )
                 info = client.validate_session()
                 shop_name = str(info.get("mall_name") or info.get("mallName") or "")
+                if shop_name and shop_name != profile.name:
+                    try:
+                        update_shop(self.config, shop_id, name=shop_name)
+                    except Exception as exc:  # noqa: BLE001 - 改名失败不影响登录
+                        logger.info("扫码登录后更新店铺名称失败：%s", exc)
             except Exception as exc:  # noqa: BLE001 - 能保存 Cookie 就算登录成功
                 logger.info("扫码登录后校验接口失败（不影响保存）：%s", exc)
             self._update_session(
