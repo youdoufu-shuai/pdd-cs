@@ -35,6 +35,7 @@ from urllib.parse import parse_qs, urlparse
 from . import __version__
 from .config import Config
 from .engine.service import PDDAutoReplyService
+from .knowledge_templates import ensure_knowledge_templates
 from .web_admin import (
     LoginManager,
     config_path,
@@ -189,7 +190,7 @@ class DashboardServer:
         auth_token = (config.server.auth_token or "").strip()
 
         class Handler(BaseHTTPRequestHandler):
-            server_version = "pdd-cs/1.8"
+            server_version = "pdd-cs/1.9"
 
             def log_message(self, fmt: str, *args) -> None:  # noqa: A003
                 logger.debug("dashboard: " + fmt, *args)
@@ -782,6 +783,18 @@ class DashboardServer:
                     result = self._reload()
                     result["message"] = "人设已保存并生效"
                     self._send_json(result)
+                    return
+                if path == "/api/content/knowledge/templates":
+                    result = ensure_knowledge_templates(service.config)
+                    reload_result = self._reload()
+                    self._send_json(
+                        {
+                            **result,
+                            "ok": True,
+                            "files": list_knowledge(service.config),
+                            "reload": reload_result,
+                        }
+                    )
                     return
                 if path == "/api/content/knowledge":
                     write_knowledge(

@@ -1378,6 +1378,19 @@ async def main(verbose: bool = False) -> int:
 
         await check("AI 客服风格一键适配", _web_style_one_click)
 
+        async def _web_after_sales_templates():
+            result = await asyncio.to_thread(
+                _web_post, "api/content/knowledge/templates", {}
+            )
+            assert "product-catalog.md" in result.get("created", []), result
+            assert "after-sales-playbook.md" in result.get("created", []), result
+            knowledge = await asyncio.to_thread(_web_get, "api/content/knowledge")
+            names = {item["name"] for item in knowledge.get("files", [])}
+            assert {"product-catalog.md", "after-sales-playbook.md"} <= names, names
+            return "一键生成商品资料库 + 售后处理手册模板（不覆盖已有文件）"
+
+        await check("商品/售后模板一键生成", _web_after_sales_templates)
+
         async def _web_settings_effect():
             # 改默认回复
             result = await asyncio.to_thread(

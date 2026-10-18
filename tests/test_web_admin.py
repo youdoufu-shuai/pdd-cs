@@ -327,6 +327,20 @@ def test_style_presets_one_click_apply(tmp_path):
         raise AssertionError("未知风格应被拒绝")
 
 
+def test_knowledge_templates_one_click(tmp_path):
+    config = _temp_config(tmp_path)
+    from pdd_cs.knowledge_templates import ensure_knowledge_templates
+
+    first = ensure_knowledge_templates(config)
+    assert "product-catalog.md" in first["created"]
+    assert "after-sales-playbook.md" in first["created"]
+    product = config.knowledge.dir / "product-catalog.md"
+    assert product.exists() and "售后" in product.read_text(encoding="utf-8")
+    second = ensure_knowledge_templates(config)
+    assert second["created"] == []
+    assert set(second["skipped"]) == {"product-catalog.md", "after-sales-playbook.md"}
+
+
 # ---------------------------------------------------------------------------
 # 服务热重载
 # ---------------------------------------------------------------------------
@@ -497,6 +511,15 @@ async def _http_scenario(tmp_path, monkeypatch):
         assert status == 200, result
         status, knowledge = await asyncio.to_thread(_get, base + "api/content/knowledge")
         assert any(item["name"] == "web-faq.md" for item in knowledge["files"])
+
+        # 一键生成商品/售后模板
+        status, result = await asyncio.to_thread(
+            _post, base + "api/content/knowledge/templates", {}
+        )
+        assert status == 200, result
+        assert "product-catalog.md" in result["created"]
+        assert "after-sales-playbook.md" in result["created"]
+        assert any(item["name"] == "after-sales-playbook.md" for item in result["files"])
 
         # 新增第二家店后再删除第一家（至少保留一个店铺）
         status, result = await asyncio.to_thread(

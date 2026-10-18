@@ -632,6 +632,7 @@
             <label class="field"><span>内容（Markdown）</span><textarea id="knowledge-text" rows="10" placeholder="# 发货说明&#10;- 默认 48 小时内发货"></textarea></label>
             <div class="btn-row">
               <button id="knowledge-save-btn">保存知识库</button>
+              <button class="ghost small" id="knowledge-template-btn">生成商品/售后模板</button>
               <span class="meta" id="knowledge-state">左侧点文件可编辑</span>
             </div>
           </div>
@@ -721,7 +722,7 @@
 <div class="toast" id="toast"></div>
 
 <footer>
-  <span>pdd-cs v1.8</span>
+  <span>pdd-cs v1.9</span>
   <span class="sep">|</span>
   <span>接口：<a href="api/status" target="_blank">status</a> · <a href="api/pending" target="_blank">pending</a> · <a href="api/insights" target="_blank">insights</a> · <a href="api/qc" target="_blank">qc</a> · <a href="api/risk" target="_blank">risk</a></span>
   <span class="sep">|</span>
@@ -1801,6 +1802,32 @@ $('knowledge-save-btn')?.addEventListener('click', async () => {
     renderKnowledgeFiles(knowledge.files || []);
   } catch (e) { toast(e.message, 'err'); }
 });
+$('knowledge-template-btn')?.addEventListener('click', async () => {
+  const button = $('knowledge-template-btn');
+  button.disabled = true;
+  $('knowledge-state').textContent = '正在生成商品/售后标准模板…';
+  try {
+    const result = await apiPost('api/content/knowledge/templates', {});
+    const created = result.created || [];
+    const skipped = result.skipped || [];
+    const knowledge = await apiGet('api/content/knowledge');
+    renderKnowledgeFiles(knowledge.files || []);
+    if (created.length) {
+      await openKnowledgeFile(created[0]);
+      $('knowledge-state').textContent = '已生成：' + created.join('、') + '（请按真实商品/政策填写）';
+      toast('已生成商品/售后模板，请替换里面的占位内容');
+    } else {
+      $('knowledge-state').textContent = '模板已存在：' + skipped.join('、') + '，未覆盖原文件';
+      toast('模板文件已存在，未覆盖');
+    }
+  } catch (e) {
+    $('knowledge-state').textContent = '生成失败：' + e.message;
+    toast(e.message, 'err');
+  } finally {
+    button.disabled = false;
+  }
+});
+
 $('persona-save-btn')?.addEventListener('click', async () => {
   try {
     await apiPost('api/content/persona', {text: $('persona-text').value});
