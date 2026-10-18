@@ -47,7 +47,7 @@ from .engine.service import PDDAutoReplyService
 from .engine.qc import QCScanner
 from .pdd.api import PDDClient, PDDSessionExpired
 from .pdd.auth import CookieBundle, CookieError, CookieStore, cookie_age_hours
-from .pdd.cdp_login import LoginError, login_with_browser, save_cookie_text
+from .pdd.cdp_login import LoginError, find_chrome, login_with_browser, save_cookie_text
 from .rules_io import RULE_TYPES, export_csv, import_csv
 from .server import DashboardServer
 from .utils import now_beijing, truncate
@@ -624,6 +624,15 @@ def cmd_doctor(args) -> int:
     except Exception as exc:  # noqa: BLE001
         line("❌", "内部组件", str(exc))
 
+    try:
+        chrome_path = find_chrome()
+        line("✅", "Chrome 登录助手", chrome_path)
+    except LoginError:
+        line(
+            "⚠️",
+            "Chrome 登录助手",
+            "未检测到 Chrome：不影响程序运行，登录时用网页「粘贴 Cookie」即可",
+        )
     line(
         "✅" if config.server.auth_token else "⚠️",
         "面板访问令牌",

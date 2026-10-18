@@ -1039,7 +1039,11 @@ function renderShopCards(payload) {
     box.innerHTML = '<div class="empty">还没有店铺，先在下面添加一个</div>';
     return;
   }
-  box.innerHTML = shops.map(shop => {
+  const noChromeNotice = cap.browser_login ? '' :
+    '<div class="setup-banner" style="grid-column:1/-1;margin:0 0 4px">' +
+    '<div class="txt"><strong>当前电脑没有检测到 Chrome。</strong> 扫码登录不可用，请用「粘贴 Cookie」登录：' +
+    '在能正常登录拼多多商家后台的浏览器按 F12 → Network → 复制 Cookie 整行，粘贴到本页即可。</div></div>';
+  box.innerHTML = noChromeNotice + shops.map(shop => {
     const runtime = shop.runtime || {};
     const channel = runtime.channel || {};
     const connected = !!channel.connected;
