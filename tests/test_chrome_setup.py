@@ -76,6 +76,18 @@ def test_capability_reports_broken_chrome(monkeypatch):
     assert "启动失败" in capability["message"]
 
 
+def test_capability_reports_qr_login(monkeypatch):
+    monkeypatch.setattr(web_admin, "find_chrome", lambda: "/opt/chrome/chrome")
+    monkeypatch.setattr(web_admin, "chrome_version", lambda path: "Google Chrome 155.0.0.0")
+    monkeypatch.setattr(web_admin, "display_available", lambda: False)
+    capability = web_admin.LoginManager(None).capability()  # type: ignore[arg-type]
+    assert capability["chrome_found"] is True
+    assert capability["display_available"] is False
+    assert capability["browser_login"] is False
+    assert capability["qr_login"] is True
+    assert "服务器扫码" in capability["message"]
+
+
 def test_capability_reports_no_display(monkeypatch):
     monkeypatch.setattr(web_admin, "find_chrome", lambda: "/opt/google/chrome/chrome")
     monkeypatch.setattr(web_admin, "chrome_version", lambda path: "Chrome/120.0.0.0")

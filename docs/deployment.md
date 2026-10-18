@@ -193,9 +193,10 @@ python -m pdd_cs doctor
 - **Linux 运行库**：Chrome for Testing 需要系统库，Debian/Ubuntu 可先安装：
   `sudo apt-get install -y libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2 libxss1 libxdamage1 libxrandr2 libxcomposite1 libxfixes3`；
   缺少时面板会提示「已检测到 Chrome，但启动失败」；
-- **Linux 无桌面服务器**：Chrome 可以装，但没有 `DISPLAY` 时无法弹出扫码窗口，
-  请继续使用「本机登录 → 导出登录态 → 服务器导入」，或自行配置 Xvfb/VNC 后把二维码显示出来；
-- 也可以完全跳过 Chrome：用「导入登录态」或「粘贴 Cookie」。
+- **Linux 无桌面服务器**：v2.0 起支持 headless 二维码登录——装好 Chrome 后，在面板点
+  「服务器扫码登录」，二维码会显示在网页里，手机扫码即可；无需 Xvfb/VNC。
+  服务器内存建议 ≥1G；登录完成后 Chrome 自动关闭；
+- 也可以完全跳过 Chrome：用「本机登录 → 导出登录态 → 服务器导入」或「粘贴 Cookie」。
 
 ### 2.0.1 登录界面（v1.7+）
 

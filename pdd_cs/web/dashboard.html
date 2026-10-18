@@ -231,6 +231,10 @@
   .login-step.active .dot2{background:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}
   .login-step.done .dot2{background:#059669}
   .login-step.fail .dot2{background:#e11d48}
+  .qr-wrap{text-align:center;padding:6px 0 4px}
+  .qr-wrap img{display:none;width:min(280px,72vw);border:1px solid var(--line);border-radius:10px;
+    background:#fff;padding:8px;box-shadow:0 6px 18px rgba(15,39,66,.08)}
+  .qr-tip{font-size:12px;color:var(--muted);line-height:1.7;text-align:center}
   .kw-table{width:100%;border-collapse:collapse;font-size:12.5px}
   .kw-table th,.kw-table td{border-bottom:1px solid #eef2f7;padding:8px;text-align:left;vertical-align:top}
   .kw-table th{color:var(--muted);font-size:11.5px;font-weight:500;background:#fbfcfe}
@@ -675,6 +679,16 @@
         </div>
         <p style="margin-top:12px">没有桌面浏览器（例如服务器）？用下面的「粘贴 Cookie」。</p>
       </div>
+      <div id="login-qr-panel" style="display:none">
+        <p>服务器没有桌面浏览器：下面会显示拼多多商家后台的登录二维码，用手机拼多多商家版 App 扫码即可。二维码会自动刷新，登录成功后自动保存登录态。</p>
+        <div class="qr-wrap">
+          <img id="login-qr-image" alt="拼多多登录二维码"/>
+        </div>
+        <div class="qr-tip" id="login-qr-state">还没有生成二维码</div>
+        <div class="btn-row" style="margin-top:12px">
+          <button id="start-qr-login-btn">生成登录二维码</button>
+        </div>
+      </div>
       <div id="login-cookie-panel" style="display:none">
         <p>在已登录拼多多商家后台的浏览器按 F12 → Network → 任意请求 → 复制请求头里的 Cookie 整行，粘贴到下面：</p>
         <textarea id="login-cookie-text" rows="6" placeholder="PASS_ID=...; MSA=...; anti_content=..."></textarea>
@@ -683,7 +697,8 @@
         </div>
       </div>
       <div class="btn-row" style="margin-top:14px">
-        <button class="ghost small" id="switch-browser-login">扫码登录</button>
+        <button class="ghost small" id="switch-browser-login">浏览器扫码</button>
+        <button class="ghost small" id="switch-qr-login">服务器扫码</button>
         <button class="ghost small" id="switch-cookie-login">粘贴 Cookie</button>
       </div>
       <div class="help-list" id="login-state" style="padding:12px 0 0">等待操作…</div>
@@ -722,7 +737,7 @@
 <div class="toast" id="toast"></div>
 
 <footer>
-  <span>pdd-cs v1.9</span>
+  <span>pdd-cs v2.0</span>
   <span class="sep">|</span>
   <span>接口：<a href="api/status" target="_blank">status</a> · <a href="api/pending" target="_blank">pending</a> · <a href="api/insights" target="_blank">insights</a> · <a href="api/qc" target="_blank">qc</a> · <a href="api/risk" target="_blank">risk</a></span>
   <span class="sep">|</span>
@@ -1128,15 +1143,19 @@ function renderShopCards(payload) {
     box.innerHTML = '<div class="empty">还没有店铺，先在下面添加一个</div>';
     return;
   }
+  let loginHint;
+  if (cap.qr_login && !cap.browser_login) {
+    loginHint = '服务器没有桌面，但已安装 Chrome：点店铺卡片「服务器扫码登录」会显示二维码，' +
+      '用手机拼多多商家版 App 扫码即可；也可以本机登录后导出登录态导入。';
+  } else if (!cap.chrome_found) {
+    loginHint = '当前环境没有检测到 Chrome：可以点右侧「运行环境」安装，' +
+      '或在本机登录后「导出登录态」→ 服务器「导入登录态」，也可以粘贴 Cookie。';
+  } else {
+    loginHint = cap.message || '当前无法直接打开登录窗口：请用粘贴 Cookie 或导入登录态。';
+  }
   const noChromeNotice = cap.browser_login ? '' :
     '<div class="setup-banner" style="grid-column:1/-1;margin:0 0 4px">' +
-    '<div class="txt"><strong>扫码登录暂不可用。</strong> ' +
-    (cap.chrome_found
-      ? '已检测到 Chrome，但当前没有图形界面（DISPLAY），无法弹出扫码窗口；'
-      : '当前环境没有检测到 Chrome；') +
-    '推荐在本机登录后「导出登录态」→ 服务器「导入登录态」，也可以直接粘贴 Cookie' +
-    (cap.chrome_found ? '。' : '，或在右侧「运行环境」安装 Chrome（有桌面时）。') +
-    '</div></div>';
+    '<div class="txt"><strong>登录提示：</strong>' + loginHint + '</div></div>';
   box.innerHTML = noChromeNotice + shops.map(shop => {
     const runtime = shop.runtime || {};
     const channel = runtime.channel || {};
@@ -1146,7 +1165,12 @@ function renderShopCards(payload) {
     const loginText = shop.cookie_saved
       ? ('已保存登录态' + (shop.cookie_age_hours != null ? '（' + shop.cookie_age_hours + ' 小时前）' : ''))
       : '还没有登录';
-    const browserDisabled = cap.browser_login ? '' : 'disabled title="当前环境没有 Chrome，请用粘贴 Cookie"';
+    const browserDisabled = cap.browser_login ? '' : 'disabled title="当前环境没有桌面 Chrome，请用服务器扫码或粘贴 Cookie"';
+    const loginButton = cap.browser_login
+      ? '<button class="small" data-act="browser" data-shop="' + esc(shop.id) + '">扫码登录</button>'
+      : (cap.qr_login
+        ? '<button class="small" data-act="qr" data-shop="' + esc(shop.id) + '">服务器扫码登录</button>'
+        : '<button class="small" data-act="browser" data-shop="' + esc(shop.id) + '" ' + browserDisabled + '>扫码登录</button>');
     const exportDisabled = shop.cookie_saved ? '' : 'disabled title="先扫码登录或粘贴 Cookie，再导出登录态"';
     const reconnect = connected ? '' : '<button class="ghost small" data-act="reload" data-shop="' + esc(shop.id) + '">重连</button>';
     return '<div class="shop-card ' + (connected ? 'logged' : (shop.enabled ? 'offline' : 'disabled')) + '">' +
@@ -1154,7 +1178,7 @@ function renderShopCards(payload) {
       '<span class="tag ' + tone + '">' + statusText + '</span></div>' +
       '<div class="meta">' + esc(loginText) + '<br/>连接状态：' + (connected ? '已连接拼多多长连接' : '未连接') + '</div>' +
       '<div class="actions">' +
-      '<button class="small" data-act="browser" data-shop="' + esc(shop.id) + '" ' + browserDisabled + '>扫码登录</button>' +
+      loginButton +
       '<button class="ghost small" data-act="cookie" data-shop="' + esc(shop.id) + '">粘贴 Cookie</button>' +
       '<button class="ghost small" data-act="export" data-shop="' + esc(shop.id) + '" ' + exportDisabled + '>导出登录态</button>' +
       '<button class="ghost small" data-act="import" data-shop="' + esc(shop.id) + '">导入登录态</button>' +
@@ -1173,6 +1197,8 @@ async function shopAction(act, shopId) {
       openLoginModal(shopId, 'browser');
     } else if (act === 'cookie') {
       openLoginModal(shopId, 'cookie');
+    } else if (act === 'qr') {
+      openLoginModal(shopId, 'qr');
     } else if (act === 'export') {
       openExportModal(shopId);
     } else if (act === 'import') {
@@ -1227,9 +1253,15 @@ function renderChromeCard(cap) {
       (cap.chrome_version ? '<br/>版本：' + esc(cap.chrome_version) : '');
     installBtn.style.display = 'none';
   } else if (cap.chrome_found) {
-    state.textContent = '已安装 · 无图形界面';
-    help.textContent = cap.message ||
-      '已检测到 Chrome，但服务器没有图形界面，无法弹窗扫码；请用本机登录后导出登录态导入。';
+    if (cap.qr_login) {
+      state.textContent = '可二维码登录';
+      help.textContent = '服务器没有桌面，但已安装 Chrome：在店铺卡片点「服务器扫码登录」，' +
+        '面板会显示二维码，用手机拼多多商家版 App 扫码即可。';
+    } else {
+      state.textContent = '已安装 · 不可用';
+      help.textContent = cap.message ||
+        '已检测到 Chrome，但当前无法启动；请安装运行库或使用导入登录态。';
+    }
     installBtn.style.display = 'none';
   } else {
     state.textContent = '未检测到';
@@ -1315,6 +1347,12 @@ function openLoginModal(shopId, mode) {
   ['login-step-browser', 'login-step-scan', 'login-step-save'].forEach(id => {
     const el = $(id); if (el) el.className = 'login-step';
   });
+  const qrImage = $('login-qr-image');
+  if (qrImage) { qrImage.src = ''; qrImage.style.display = 'none'; }
+  if ($('login-qr-state')) $('login-qr-state').textContent = '还没有生成二维码';
+  if ($('start-qr-login-btn')) $('start-qr-login-btn').disabled = false;
+  const qrSwitch = $('switch-qr-login');
+  if (qrSwitch) qrSwitch.style.display = (shopsCache.capability && shopsCache.capability.qr_login) ? '' : 'none';
   setLoginMode(mode);
 }
 function closeLoginModal() {
@@ -1326,13 +1364,16 @@ function setLoginMode(mode) {
   loginState.mode = mode;
   $('login-browser-panel').style.display = mode === 'browser' ? '' : 'none';
   $('login-cookie-panel').style.display = mode === 'cookie' ? '' : 'none';
-  $('switch-browser-login').classList.toggle('ghost', mode === 'cookie');
-  $('switch-cookie-login').classList.toggle('ghost', mode === 'browser');
+  $('login-qr-panel').style.display = mode === 'qr' ? '' : 'none';
+  $('switch-browser-login').classList.toggle('ghost', mode !== 'browser');
+  $('switch-cookie-login').classList.toggle('ghost', mode !== 'cookie');
+  $('switch-qr-login').classList.toggle('ghost', mode !== 'qr');
 }
 $('login-close')?.addEventListener('click', closeLoginModal);
 $('login-modal')?.addEventListener('click', (e) => { if (e.target === $('login-modal')) closeLoginModal(); });
 $('switch-browser-login')?.addEventListener('click', () => setLoginMode('browser'));
 $('switch-cookie-login')?.addEventListener('click', () => setLoginMode('cookie'));
+$('switch-qr-login')?.addEventListener('click', () => setLoginMode('qr'));
 $('start-browser-login-btn')?.addEventListener('click', async () => {
   try {
     const stepBrowser = $('login-step-browser');
@@ -1375,6 +1416,53 @@ function pollLogin() {
     }
   }, 1500);
 }
+$('start-qr-login-btn')?.addEventListener('click', async () => {
+  const button = $('start-qr-login-btn');
+  button.disabled = true;
+  $('login-qr-state').textContent = '正在启动服务器 Chrome，请稍候…';
+  try {
+    const session = await apiPost('api/login/qr', {shop_id: loginState.shopId});
+    loginState.sessionId = session.session_id;
+    $('login-qr-state').textContent = session.message || '正在生成二维码…';
+    pollQrLogin();
+  } catch (e) {
+    $('login-qr-state').textContent = '启动失败：' + e.message;
+    button.disabled = false;
+    toast(e.message, 'err');
+  }
+});
+
+function pollQrLogin() {
+  if (!loginState.sessionId) return;
+  loginState.timer = setTimeout(async () => {
+    try {
+      const session = await apiGet('api/login/sessions/' + loginState.sessionId);
+      const image = $('login-qr-image');
+      if (session.qr_image) {
+        image.src = 'data:image/png;base64,' + session.qr_image;
+        image.style.display = 'block';
+      }
+      $('login-qr-state').textContent = session.message +
+        (session.elapsed_seconds != null ? '（已等待 ' + Math.round(session.elapsed_seconds) + ' 秒）' : '');
+      if (session.state === 'success') {
+        $('login-qr-state').textContent = '登录成功，正在应用登录态…';
+        await apiPost('api/service/reload', {});
+        toast('扫码登录成功，店铺已上线');
+        closeLoginModal();
+        await loadShops(); load();
+      } else if (session.state === 'failed') {
+        $('start-qr-login-btn').disabled = false;
+        toast(session.message || '扫码登录失败', 'err');
+      } else {
+        pollQrLogin();
+      }
+    } catch (e) {
+      $('login-qr-state').textContent = '查询二维码状态失败：' + e.message;
+      $('start-qr-login-btn').disabled = false;
+    }
+  }, 1500);
+}
+
 $('save-cookie-btn')?.addEventListener('click', async () => {
   const cookie = $('login-cookie-text').value.trim();
   if (!cookie) { toast('请先粘贴 Cookie', 'err'); return; }

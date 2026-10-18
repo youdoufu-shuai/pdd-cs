@@ -193,6 +193,43 @@ def test_cookie_login_invalid_session_removes_cookie(tmp_path, monkeypatch):
     assert not Path(config.shop_profile("shop-a").cookie_file).exists()
 
 
+def test_qr_login_session(tmp_path, monkeypatch):
+    import time
+
+    config = _temp_config(tmp_path)
+    web_admin.add_shop(config, "shop-a", "A店")
+    config = Config.load(config.source)
+    monkeypatch.setattr(web_admin, "find_chrome", lambda: "/usr/bin/google-chrome")
+    monkeypatch.setattr(web_admin, "chrome_version", lambda path: "Google Chrome 155.0.0.0")
+    monkeypatch.setattr(web_admin, "display_available", lambda: False)
+    monkeypatch.setattr(web_admin, "PDDClient", _FakeClient)
+
+    def fake_headless(store, **kwargs):
+        kwargs["on_qr"](b"\x89PNG\r\n\x1a\n fake qr")
+        return {
+            "PASS_ID": "mock-pass",
+            "SUB_PASS_ID": "mock-sub",
+            "MSA": "mock-msa",
+            "SUB_SYS_ID": "mock-sys",
+            "anti_content": "mock-anti",
+            "api_uid": "mock-api",
+        }
+
+    monkeypatch.setattr(web_admin, "login_with_browser_headless", fake_headless)
+    manager = web_admin.LoginManager(config)
+    session = manager.start_qr_login("shop-a")
+    assert session["mode"] == "qr"
+    session_id = session["session_id"]
+    for _ in range(50):
+        current = manager.get_session(session_id)
+        if current["state"] in {"success", "failed"}:
+            break
+        time.sleep(0.05)
+    assert current["state"] == "success", current
+    assert current["qr_image"]
+    assert current["shop_name"] == "测试店铺"
+
+
 def test_browser_login_requires_chrome(tmp_path, monkeypatch):
     config = _temp_config(tmp_path)
 

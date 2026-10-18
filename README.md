@@ -54,9 +54,10 @@
 | 网页设置中心 | **登录、店铺、AI Key、回复规则、营业时间、告警、话术、知识库全部在浏览器里完成**，终端只负责启动 |
 | 登录态迁移 | 本机扫码/粘贴 Cookie 后「导出登录态」，把登录码/文件带到服务器「导入登录态」即可上线，**服务器不用装 Chrome** |
 | AI 风格一键适配 | 5 种客服风格 + 称呼/表情/店铺类型/语气示例，一键生成人设和默认回复，**小白不用会写 prompt** |
+| 服务器无头扫码登录 | 没有桌面的 Linux 服务器安装 Chrome 后，面板直接显示登录二维码，手机扫码登录，无需本机导出 |
 | 商品/售后模板 | 知识库一键生成商品资料库 + 售后处理手册，机器人只答客观参数，售后先收集再转人工 |
 | 本地面板 | 商务多彩风格，零前端依赖，`http://127.0.0.1:38617`；新手引导、KPI 色带、多店铺切换、搜索、会话详情、测试台 |
-| 可测试 | 自带拼多多 Mock（HTTP + WS），158 个自动化测试 + 67 项全功能验证，无需真实店铺即可全链路验证 |
+| 可测试 | 自带拼多多 Mock（HTTP + WS），160 个自动化测试 + 67 项全功能验证，无需真实店铺即可全链路验证 |
 
 ## 多店铺与日常运营功能
 
@@ -234,6 +235,24 @@ journalctl -u pdd-cs -f
 - **完整方案**（角色分工、分类处理矩阵、标准话术、验收用例、质检）：
   [docs/after-sales.md](docs/after-sales.md)
 
+## 服务器无桌面扫码登录（Chrome Headless）
+
+Linux 服务器没有桌面、无法弹出 Chrome 窗口时，v2.0 起支持**在面板里显示二维码扫码登录**：
+
+1. 在面板「店铺与登录 → 运行环境 · Chrome」点「一键下载 Chrome」（或在服务器运行
+   `python -m pdd_cs chrome --install`）；
+2. Linux 需要系统运行库（Debian/Ubuntu）：
+   ```bash
+   sudo apt-get install -y libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2 \
+     libxss1 libxdamage1 libxrandr2 libxcomposite1 libxfixes3 libx11-xcb1 libxkbcommon0
+   ```
+3. 店铺卡片点 **「服务器扫码登录」** → 面板显示拼多多商家后台二维码 → 手机拼多多商家版 App 扫码；
+4. 登录成功后自动保存登录态并上线，二维码窗口自动关闭。
+
+原理：headless Chrome 打开登录页，程序通过 CDP 定时截取登录页图片（含二维码）推到面板；
+二维码会实时刷新。登录只在扫码那 1–2 分钟占用 Chrome 内存，完成后释放。
+如果服务器内存紧张，仍推荐用「本机登录 → 导出登录态 → 服务器导入」。
+
 ## Chrome 自动检测与一键下载（可选）
 
 - **自动检测**：`python -m pdd_cs chrome --status`，或在面板「店铺与登录 → 运行环境」查看；
@@ -317,7 +336,7 @@ pip 安装（不想 clone 时）：`pip install .`，之后可用 `pdd-cs` 命�
 项目自带两套验证，改完配置/话术/代码后建议各跑一遍：
 
 ```bash
-python -m pytest                 # 158 个自动化测试（单元 + 多店铺端到端 + 网页后台 + CLI 子进程）
+python -m pytest                 # 160 个自动化测试（单元 + 多店铺端到端 + 网页后台 + CLI 子进程）
 python scripts/verify_all.py     # 67 项全功能验证（真起 Mock 拼多多 + 多店铺 + 网页登录/导入/设置/风格/售后模板 + 面板 + Chrome 检测 + CLI）
 ```
 
@@ -396,7 +415,7 @@ pdd-cs/
 │   └── __main__.py     # CLI：init/login/run/doctor/simulate/stats/export/lint/qc/alert-test/rules
 ├── config/             # 配置、人设、知识库、规则（可直接改，不用改代码）
 ├── mock/               # 拼多多 Mock 服务（HTTP + WS），用于演示和测试
-├── tests/              # 158 个自动化测试（含多店铺端到端、网页后台、Chrome 安装、AI 风格）
+├── tests/              # 160 个自动化测试（含多店铺端到端、网页后台、Chrome 安装、AI 风格、二维码登录）
 ├── docs/               # 平台规则、架构、合规矩阵、运营手册、部署指南、小白指南、协议说明
 ├── deploy/             # systemd 服务文件、docker-compose
 ├── Dockerfile          # 生产镜像（含 strict 健康检查）

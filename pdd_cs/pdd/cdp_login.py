@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -22,7 +23,7 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from websockets.sync.client import connect as ws_connect
 
@@ -31,6 +32,12 @@ from .auth import CookieStore, validate_cookies
 logger = logging.getLogger("pdd_cs.login")
 
 DEFAULT_START_URL = "https://mms.pinduoduo.com/chat-merchant/index"
+
+#: 服务器无桌面时用桌面 Chrome UA，避免拼多多把 HeadlessChrome 识别为不安全浏览器
+HEADLESS_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
+)
 
 
 class LoginError(RuntimeError):
@@ -325,6 +332,8 @@ def launch_chrome(
     user_data_dir: Path,
     debug_port: int,
     start_url: str = DEFAULT_START_URL,
+    *,
+    headless: bool = False,
 ) -> subprocess.Popen:
     """以远程调试模式启动 Chrome（独立用户目录）。"""
     user_data_dir.mkdir(parents=True, exist_ok=True)
@@ -336,8 +345,20 @@ def launch_chrome(
         "--no-first-run",
         "--no-default-browser-check",
         "--disable-popup-blocking",
-        start_url,
     ]
+    if headless:
+        args += [
+            "--headless=new",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--no-sandbox",
+            "--no-zygote",
+            "--hide-scrollbars",
+            "--window-size=1280,900",
+            f"--user-agent={HEADLESS_USER_AGENT}",
+            "--disable-blink-features=AutomationControlled",
+        ]
+    args.append(start_url)
     logger.info("启动 Chrome: %s", chrome_path)
     creationflags = 0
     if sys.platform.startswith("win"):
@@ -506,6 +527,81 @@ def login_with_browser(
                 pass
 
 
+def login_with_browser_headless(
+    cookie_store: CookieStore,
+    *,
+    chrome_path: Optional[str] = None,
+    start_url: str = DEFAULT_START_URL,
+    timeout_seconds: int = 600,
+    user_data_dir: Optional[Path] = None,
+    poll_seconds: float = 2.0,
+    on_qr: Optional[Callable[[bytes], None]] = None,
+) -> dict[str, str]:
+    """无桌面服务器扫码登录：headless Chrome 打开登录页，定时回报二维码截图。
+
+    Args:
+        cookie_store: Cookie 保存位置。
+        chrome_path: Chrome 路径（默认自动查找）。
+        start_url: 登录页地址。
+        timeout_seconds: 最长等待扫码时间。
+        user_data_dir: Chrome 用户目录。
+        poll_seconds: 轮询 Cookie 间隔。
+        on_qr: 每次截到登录页图片时回调（PNG bytes），用于网页面板展示二维码。
+
+    Returns:
+        保存的 Cookie 字典。
+    """
+    chrome = find_chrome(chrome_path)
+    port = _free_port()
+    profile = user_data_dir or (cookie_store.path.parent.parent.parent / "data" / "chrome-profile")
+    process = launch_chrome(chrome, profile, port, start_url, headless=True)
+    cdp: Optional[CDP] = None
+    try:
+        wait_for_debugger(port)
+        target = find_pdd_target(port)
+        cdp = CDP(target["webSocketDebuggerUrl"])
+        cdp.call("Network.enable", {})
+        cdp.call("Page.enable", {})
+        logger.info("无桌面扫码登录已启动，等待扫码…")
+
+        deadline = time.time() + timeout_seconds
+        last_shot = 0.0
+        while time.time() < deadline:
+            cookies = read_pdd_cookies(cdp)
+            if _looks_logged_in(cookies):
+                problems = [p for p in validate_cookies(cookies) if "缺少部分" in p]
+                cookie_store.save_text("; ".join(f"{k}={v}" for k, v in cookies.items()))
+                logger.info("扫码登录成功，已保存 %s 个 Cookie", len(cookies))
+                for problem in problems:
+                    logger.warning(problem)
+                return cookies
+            now = time.time()
+            if on_qr is not None and now - last_shot >= 1.5:
+                try:
+                    shot = cdp.call(
+                        "Page.captureScreenshot",
+                        {"format": "png", "captureBeyondViewport": False},
+                        timeout=15,
+                    )
+                    data = base64.b64decode(shot.get("data") or "")
+                    if data:
+                        on_qr(data)
+                except Exception as exc:  # noqa: BLE001 - 截图失败不阻断扫码
+                    logger.debug("二维码截图失败: %s", exc)
+                last_shot = now
+            time.sleep(poll_seconds)
+
+        raise LoginError("等待扫码超时，请重新生成二维码再试")
+    finally:
+        if cdp:
+            cdp.close()
+        try:
+            process.terminate()
+            process.wait(timeout=5)
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def save_cookie_text(cookie_store: CookieStore, text: str, shop_name: str = "") -> dict[str, str]:
     """直接从粘贴的 Cookie 文本保存（浏览器登录失败时的备选方案）。"""
     bundle = cookie_store.save_text(text, shop_name=shop_name)
@@ -518,6 +614,7 @@ def save_cookie_text(cookie_store: CookieStore, text: str, shop_name: str = "") 
 
 __all__ = [
     "login_with_browser",
+    "login_with_browser_headless",
     "save_cookie_text",
     "find_chrome",
     "chrome_status",

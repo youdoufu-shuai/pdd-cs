@@ -39,6 +39,7 @@ from .pdd.cdp_login import (
     display_available,
     find_chrome,
     login_with_browser,
+    login_with_browser_headless,
 )
 from .style_presets import (
     ADDRESS_OPTIONS,
@@ -583,6 +584,7 @@ class LoginManager:
         self._lock = threading.Lock()
         self._sessions: dict[str, dict[str, Any]] = {}
         self._active_browser: Optional[str] = None
+        self._active_qr: Optional[str] = None
         self._chrome_install: Optional[dict[str, Any]] = None
 
     # -- 能力检测 ---------------------------------------------------
@@ -600,6 +602,7 @@ class LoginManager:
                 "chrome_path": "",
                 "chrome_version": "",
                 "display_available": display,
+                "qr_login": False,
                 "install_supported": supported,
                 "message": "未找到 Chrome/Chromium/Edge：可以一键下载 Chrome（约 150MB，免 root），"
                 "或使用「粘贴 Cookie / 导入登录态」。",
@@ -619,6 +622,7 @@ class LoginManager:
                 "chrome_path": chrome,
                 "chrome_version": version,
                 "display_available": display,
+                "qr_login": False,
                 "install_supported": supported,
                 "message": "已检测到 Chrome，但启动失败（通常是 Linux 缺少运行库）。"
                 "请安装 libnss3 等依赖，或改用「导入登录态」。",
@@ -632,9 +636,10 @@ class LoginManager:
                 "chrome_path": chrome,
                 "chrome_version": version,
                 "display_available": False,
+                "qr_login": True,
                 "install_supported": supported,
-                "message": "已检测到 Chrome，但当前没有图形界面（DISPLAY），无法弹出扫码窗口。"
-                "请在本机登录后导出登录态，再到服务器导入；或在服务器配置 Xvfb/VNC。",
+                "message": "已检测到 Chrome，但当前没有图形界面（DISPLAY）。"
+                "可以使用「服务器扫码登录」在面板显示二维码；也可以本机登录后导出登录态导入。",
             }
         return {
             "browser_login": True,
@@ -644,6 +649,7 @@ class LoginManager:
             "chrome_path": chrome,
             "chrome_version": version,
             "display_available": True,
+            "qr_login": True,
             "install_supported": supported,
             "message": "已检测到 Chrome",
         }
@@ -742,10 +748,12 @@ class LoginManager:
         return {
             "session_id": session["session_id"],
             "shop_id": session["shop_id"],
+            "mode": session.get("mode", "browser"),
             "state": session["state"],
             "message": session["message"],
             "cookies": session.get("cookies", 0),
             "shop_name": session.get("shop_name", ""),
+            "qr_image": session.get("qr_image", ""),
             "elapsed_seconds": round(time.time() - session["started_at"], 1),
         }
 
@@ -830,6 +838,89 @@ class LoginManager:
             with self._lock:
                 if self._active_browser == session_id:
                     self._active_browser = None
+
+    # -- 服务器无头二维码扫码登录 -----------------------------------
+    def start_qr_login(self, shop_id: str) -> dict[str, Any]:
+        profile = self._profile(shop_id)
+        capability = self.capability()
+        if not capability.get("qr_login"):
+            raise SettingsError(
+                "当前环境没有可用的 Chrome，无法生成登录二维码。"
+                "请先在「运行环境」安装 Chrome，或使用粘贴 Cookie/导入登录态。"
+            )
+        with self._lock:
+            if self._active_browser or self._active_qr:
+                raise SettingsError("已有登录窗口在等待操作，请先完成或等待超时")
+            session_id = uuid.uuid4().hex[:12]
+            self._sessions[session_id] = {
+                "session_id": session_id,
+                "shop_id": shop_id,
+                "mode": "qr",
+                "state": "starting",
+                "message": "正在启动服务器 Chrome…",
+                "started_at": time.time(),
+                "cookies": 0,
+                "shop_name": "",
+                "qr_image": "",
+            }
+            self._active_qr = session_id
+        thread = threading.Thread(
+            target=self._run_qr_login,
+            args=(session_id, shop_id, profile),
+            name=f"qr-login-{shop_id}",
+            daemon=True,
+        )
+        thread.start()
+        return self.get_session(session_id)
+
+    def _run_qr_login(self, session_id: str, shop_id: str, profile) -> None:
+        store = CookieStore(profile.cookie_file)
+
+        def on_qr(image: bytes) -> None:
+            self._update_session(
+                session_id,
+                state="waiting",
+                message="请用手机拼多多商家版 App 扫码登录，二维码会自动刷新",
+                qr_image=base64.b64encode(image).decode("ascii"),
+            )
+
+        try:
+            cookies = login_with_browser_headless(
+                store,
+                timeout_seconds=600,
+                user_data_dir=PROJECT_ROOT / "data" / "chrome-profile" / shop_id,
+                on_qr=on_qr,
+            )
+            shop_name = ""
+            try:
+                shop_cfg = self.config.for_shop(profile)
+                client = PDDClient(
+                    cookies,
+                    base_url=shop_cfg.pdd.base_url,
+                    user_agent=shop_cfg.pdd.user_agent,
+                    timeout=15,
+                    max_retries=1,
+                )
+                info = client.validate_session()
+                shop_name = str(info.get("mall_name") or info.get("mallName") or "")
+            except Exception as exc:  # noqa: BLE001 - 能保存 Cookie 就算登录成功
+                logger.info("扫码登录后校验接口失败（不影响保存）：%s", exc)
+            self._update_session(
+                session_id,
+                state="success",
+                message=f"扫码登录成功，已保存 {len(cookies)} 个 Cookie",
+                cookies=len(cookies),
+                shop_name=shop_name,
+            )
+        except LoginError as exc:
+            self._update_session(session_id, state="failed", message=str(exc))
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("服务器扫码登录异常")
+            self._update_session(session_id, state="failed", message=f"登录失败：{exc}")
+        finally:
+            with self._lock:
+                if self._active_qr == session_id:
+                    self._active_qr = None
 
     # -- Cookie 粘贴登录 ---------------------------------------------
     def cookie_login(self, shop_id: str, cookie_text: str) -> dict[str, Any]:

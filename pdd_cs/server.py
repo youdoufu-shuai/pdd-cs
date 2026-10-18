@@ -190,7 +190,7 @@ class DashboardServer:
         auth_token = (config.server.auth_token or "").strip()
 
         class Handler(BaseHTTPRequestHandler):
-            server_version = "pdd-cs/1.9"
+            server_version = "pdd-cs/2.0"
 
             def log_message(self, fmt: str, *args) -> None:  # noqa: A003
                 logger.debug("dashboard: " + fmt, *args)
@@ -749,6 +749,10 @@ class DashboardServer:
                     return
                 if path == "/api/login/chrome/install":
                     session = admin.start_chrome_install()
+                    self._send_json({"ok": True, **session})
+                    return
+                if path == "/api/login/qr":
+                    session = admin.start_qr_login(str(data.get("shop_id") or ""))
                     self._send_json({"ok": True, **session})
                     return
                 if path == "/api/login/browser":
