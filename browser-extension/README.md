@@ -5,8 +5,8 @@
 ## 安装
 
 1. 下载并解压 `pdd-extension.zip`（服务器面板地址：`https://youdoufu.xyz:38618/pdd-extension.zip`）
-2. Chrome 打开 `chrome://extensions`
-3. 右上角开启「开发者模式」
+2. Chrome 打开 `chrome://extensions`；**Microsoft Edge** 打开 `edge://extensions`
+3. 右上角开启「开发者模式」/「开发人员模式」
 4. 点「加载已解压的扩展程序」，选择解压后的 `browser-extension` 文件夹
 5. 点浏览器右上角扩展图标，填写：
    - 面板地址：`https://youdoufu.xyz:38618`

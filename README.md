@@ -255,7 +255,7 @@ journalctl -u pdd-cs -f
 如果服务器扫码打开的是短时效二维码、截图容易过期，可以用随项目提供的 Chrome 扩展：
 
 1. 下载 `https://你的面板地址/pdd-extension.zip`，解压；
-2. Chrome 打开 `chrome://extensions` → 开启开发者模式 → 加载已解压的扩展程序；
+2. Chrome 打开 `chrome://extensions`，Microsoft Edge 打开 `edge://extensions` → 开启开发者模式/开发人员模式 → 加载已解压的扩展程序；
 3. 在扩展里填写面板地址、访问令牌和店铺 ID；
 4. 在 Chrome 里登录拼多多商家后台，点扩展「立即同步」。
 
