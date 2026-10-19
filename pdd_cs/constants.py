@@ -70,6 +70,7 @@ CS_STATUS_OFFLINE: int = 3
 # ---------------------------------------------------------------------------
 MSG_TYPE_TEXT: int = 0
 MSG_TYPE_IMAGE: int = 1
+MSG_TYPE_VOICE: int = 2
 MSG_TYPE_EMOTION: int = 5
 MSG_TYPE_VIDEO: int = 14
 MSG_TYPE_TRANSFER: int = 24

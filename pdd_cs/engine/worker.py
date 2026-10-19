@@ -40,7 +40,15 @@ from ..constants import (
 from ..pdd.api import PDDClient, PDDError, PDDSendRejected, PDDSessionExpired
 from ..pdd.auth import CookieError, CookieStore, cookie_age_hours
 from ..pdd.channel import ConnState, PDDChannel
-from ..pdd.message import ChatEvent, CTX_ORDER_INFO, CTX_SYSTEM, CTX_WITHDRAW
+from ..pdd.message import (
+    ChatEvent,
+    CTX_ORDER_INFO,
+    CTX_SYSTEM,
+    CTX_TEXT,
+    CTX_VOICE,
+    CTX_WITHDRAW,
+)
+from ..speech import SpeechError, VoiceTranscriber
 from ..store import Store
 from ..utils import in_business_hours, iso, jitter, now_beijing, safe_float
 from .ai import AIReplyGenerator
@@ -90,6 +98,7 @@ class ShopWorker:
         )
         self.guard = ComplianceGuard.from_file(self.config.compliance, self.config.rules.compliance_file)
         self.ai = AIReplyGenerator(self.config, knowledge)
+        self.transcriber = VoiceTranscriber(self.config.speech)
         self.decision = DecisionEngine(self.config, rules, self.guard, self.ai, knowledge=knowledge)
 
         self.cookie_store = CookieStore(self.config.pdd.cookie_file)
@@ -291,6 +300,10 @@ class ShopWorker:
         if event.role != "OTHER":
             return
 
+        if event.context_type == CTX_VOICE:
+            await self._handle_voice(event)
+            return
+
         self.store.record_inbound(
             uid=event.uid,
             nickname=event.nickname,
@@ -321,6 +334,61 @@ class ShopWorker:
             ctx = self._build_context(event)
             decision = self.decision.decide(event, ctx)
             await self._execute(event, decision)
+
+    async def _handle_voice(self, event: ChatEvent) -> None:
+        """语音先转文字；转写失败明确请客户打字，不能沉默。"""
+        transcript = ""
+        if event.audio_url and self.transcriber.available:
+            try:
+                transcript = await asyncio.to_thread(
+                    self.transcriber.transcribe,
+                    event.audio_url,
+                    cookies=dict(self.api.cookies) if self.api else {},
+                    user_agent=self.config.pdd.user_agent,
+                ) or ""
+            except SpeechError as exc:
+                logger.warning("[%s] 语音转写失败 uid=%s: %s", self.shop_id, event.uid, exc)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[%s] 语音转写异常 uid=%s: %s", self.shop_id, event.uid, exc)
+
+        if transcript and len(transcript.strip()) >= 2:
+            event.context_type = CTX_TEXT
+            event.content = transcript
+            logger.info("[%s] 语音转写成功 uid=%s: %s", self.shop_id, event.uid, transcript[:80])
+            await self._handle_event(event)
+            return
+
+        # 没有音频地址/模型未就绪/口音太重导致空结果：给出明确说明
+        if self.sla.is_human_active(event.uid):
+            self.store.mark_result(event.uid, RESULT_HUMAN_TAKEOVER, shop_id=self.shop_id)
+            return
+        fallback = self.config.speech.fallback_reply or (
+            "收到您的语音啦～我这边听得不太清楚，麻烦您打字说一下具体问题，我马上帮您处理。"
+        )
+        self.store.record_inbound(
+            uid=event.uid,
+            nickname=event.nickname,
+            role="OTHER",
+            context_type="voice",
+            content="[买家发来一段语音]",
+            msg_id=event.msg_id,
+            platform_time=event.timestamp,
+            shop_id=self.shop_id,
+        )
+        try:
+            await asyncio.to_thread(self.api.send_text, event.uid, fallback)
+            self.store.record_outbound(
+                uid=event.uid,
+                content=fallback,
+                action="fallback",
+                result="voice_fallback",
+                status="sent",
+                shop_id=self.shop_id,
+            )
+            logger.info("[%s] 语音无法转写，已提示打字 uid=%s", self.shop_id, event.uid)
+        except Exception as exc:  # noqa: BLE001
+            self.store.mark_result(event.uid, RESULT_FAILED, shop_id=self.shop_id)
+            logger.error("[%s] 语音兜底提示发送失败: %s", self.shop_id, exc)
 
     async def _handle_self_message(self, event: ChatEvent) -> None:
         if self._is_own_echo(event.uid, event.content):

@@ -383,6 +383,19 @@ class BusinessHoursConfig:
 
 
 @dataclass
+class SpeechConfig:
+    enabled: bool
+    provider: str
+    model_dir: Path
+    language: str
+    timeout_seconds: float
+    fallback_reply: str
+    openai_base_url: str
+    openai_api_key: str
+    openai_model: str
+
+
+@dataclass
 class HumanHoursConfig:
     enabled: bool
     start: str
@@ -627,6 +640,32 @@ class Config:
             parse_hhmm(self.human_hours.start)
             parse_hhmm(self.human_hours.end)
 
+        speech = data.get("speech", {})
+        speech_key = os.getenv(
+            str(speech.get("api_key_env") or "PDD_CS_SPEECH_KEY"), ""
+        ) or str(speech.get("api_key", "") or "")
+        self.speech = SpeechConfig(
+            enabled=_as_bool(speech.get("enabled"), True),
+            provider=str(speech.get("provider", "vosk") or "vosk").lower(),
+            model_dir=self._path(
+                speech.get("model_dir", "data/asr/vosk-model-small-cn-0.22")
+            ),
+            language=str(speech.get("language", "zh") or "zh"),
+            timeout_seconds=_as_float(speech.get("timeout_seconds"), 30),
+            fallback_reply=str(
+                speech.get(
+                    "fallback_reply",
+                    "收到您的语音啦～我这边听得不太清楚，麻烦您打字说一下具体问题"
+                    "（商品名、尺码或售后），我马上帮您处理。",
+                )
+            ),
+            openai_base_url=str(
+                speech.get("openai_base_url", "https://api.openai.com/v1")
+            ).rstrip("/"),
+            openai_api_key=speech_key.strip(),
+            openai_model=str(speech.get("openai_model", "whisper-1")),
+        )
+
         knowledge = data.get("knowledge", {})
         self.knowledge = KnowledgeConfig(
             enabled=_as_bool(knowledge.get("enabled"), True),
@@ -781,6 +820,7 @@ class Config:
         base["behavior"] = asdict(self.behavior)
         base["business_hours"] = asdict(self.business_hours)
         base["human_hours"] = asdict(self.human_hours)
+        base["speech"] = asdict(self.speech)
         base["compliance"] = asdict(self.compliance)
         base["knowledge"] = asdict(self.knowledge)
         base["server"] = asdict(self.server)

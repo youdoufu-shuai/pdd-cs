@@ -184,6 +184,17 @@ business_hours:
 # -----------------------------------------------------------------------------
 # 知识库
 # -----------------------------------------------------------------------------
+speech:
+  enabled: true
+  provider: vosk                 # vosk（本地，免费）| openai（Whisper 兼容接口）
+  model_dir: data/asr/vosk-model-small-cn-0.22
+  language: zh
+  timeout_seconds: 30
+  fallback_reply: 收到您的语音啦～我这边听得不太清楚，麻烦您打字说一下具体问题（商品名、尺码或售后），我马上帮您处理。
+  openai_base_url: https://api.openai.com/v1
+  openai_model: whisper-1
+  api_key_env: PDD_CS_SPEECH_KEY
+
 knowledge:
   enabled: true
   dir: config/knowledge

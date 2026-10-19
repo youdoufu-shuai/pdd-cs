@@ -33,6 +33,7 @@ from ..constants import (
     MSG_TYPE_TEXT,
     MSG_TYPE_TRANSFER,
     MSG_TYPE_VIDEO,
+    MSG_TYPE_VOICE,
     MSG_TYPE_WITHDRAW,
     ROLE_OTHER,
     ROLE_SELF,
@@ -47,6 +48,7 @@ logger = logging.getLogger("pdd_cs.message")
 # 上下文类型（与决策引擎、日志展示对应）
 CTX_TEXT = "text"
 CTX_IMAGE = "image"
+CTX_VOICE = "voice"
 CTX_VIDEO = "video"
 CTX_EMOTION = "emotion"
 CTX_GOODS_INQUIRY = "goods_inquiry"
@@ -74,6 +76,7 @@ class ChatEvent:
     timestamp: float = 0.0             # 平台时间戳（秒或毫秒）
     order_info: dict[str, Any] = field(default_factory=dict)
     goods_info: dict[str, Any] = field(default_factory=dict)
+    audio_url: str = ""                # 语音消息的音频地址
     raw: dict[str, Any] = field(default_factory=dict)
     is_auto: bool = False              # 平台标记的自动消息（如自动回复）
 
@@ -92,7 +95,7 @@ class ChatEvent:
         """用于日志 / 面板展示的一行摘要。"""
         prefix = {"OTHER": "买家", "SELF": "客服", "SYSTEM": "系统"}.get(self.role, self.role)
         body = self.content.replace("\n", " ")[:120]
-        if self.context_type in {CTX_IMAGE, CTX_VIDEO, CTX_EMOTION} and not body:
+        if self.context_type in {CTX_IMAGE, CTX_VOICE, CTX_VIDEO, CTX_EMOTION} and not body:
             body = f"[{self.context_type}]"
         return f"{prefix}({self.uid}): {body}"
 
@@ -121,6 +124,90 @@ def _merge_info(payload: dict[str, Any]) -> dict[str, Any]:
     info = info if isinstance(info, dict) else {}
     data = info.get("data") if isinstance(info.get("data"), dict) else {}
     return {**info, **data}
+
+
+def _extract_voice_text(payload: dict[str, Any]) -> str:
+    """部分拼多多版本会直接带语音识别文本。"""
+    message = payload.get("message") if isinstance(payload.get("message"), dict) else {}
+    info = _merge_info(payload)
+    for source in (message, info, message.get("content") if isinstance(message.get("content"), dict) else {}):
+        if not isinstance(source, dict):
+            continue
+        for key in ("voice_text", "voiceText", "asr_text", "recognized_text", "recognizedText"):
+            value = source.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    content = message.get("content")
+    if isinstance(content, str) and content.startswith("{"):
+        try:
+            nested = json.loads(content)
+        except Exception:
+            nested = None
+        if isinstance(nested, dict):
+            for key in ("voice_text", "voiceText", "asr_text", "text"):
+                value = nested.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+    return ""
+
+
+def _extract_voice_url(payload: dict[str, Any]) -> str:
+    """语音消息在不同接口版本里可能是字符串、JSON 或 info.data。"""
+    message = payload.get("message") if isinstance(payload.get("message"), dict) else {}
+    info = _merge_info(payload)
+    candidates: list[Any] = [
+        message.get("content"),
+        message.get("voice_url"),
+        message.get("voiceUrl"),
+        _safe_get(payload, "message", "info", "url"),
+        info.get("url"),
+        info.get("voice_url"),
+        info.get("voiceUrl"),
+        info.get("audio_url"),
+        info.get("audioUrl"),
+        info.get("download_url"),
+    ]
+    for candidate in candidates:
+        if isinstance(candidate, str):
+            value = candidate.strip()
+            if value.startswith("http://") or value.startswith("https://"):
+                return value
+            if value.startswith("{"):
+                try:
+                    nested = json.loads(value)
+                except Exception:
+                    continue
+                url = _find_url(nested)
+                if url:
+                    return url
+        elif isinstance(candidate, dict):
+            url = _find_url(candidate)
+            if url:
+                return url
+    return ""
+
+
+def _find_url(data: Any, depth: int = 0) -> str:
+    if depth > 4:
+        return ""
+    if isinstance(data, str):
+        value = data.strip()
+        return value if value.startswith(("http://", "https://")) else ""
+    if isinstance(data, dict):
+        for key in ("url", "voice_url", "voiceUrl", "audio_url", "audioUrl", "download_url"):
+            value = data.get(key)
+            if isinstance(value, str) and value.startswith(("http://", "https://")):
+                return value
+        for value in data.values():
+            url = _find_url(value, depth + 1)
+            if url:
+                return url
+    if isinstance(data, list):
+        for value in data:
+            url = _find_url(value, depth + 1)
+            if url:
+                return url
+    return ""
 
 
 def _extract_goods(payload: dict[str, Any]) -> dict[str, Any]:
@@ -234,6 +321,16 @@ def parse_message(payload: dict[str, Any]) -> Optional[ChatEvent]:
         event.context_type = CTX_IMAGE
         event.raw_content = message.get("content")
         event.content = "[买家发送了一张图片]"
+    elif msg_type == MSG_TYPE_VOICE:
+        event.raw_content = message.get("content")
+        event.audio_url = _extract_voice_url(payload)
+        inline_text = _extract_voice_text(payload)
+        if inline_text:
+            event.context_type = CTX_TEXT
+            event.content = normalize_text(inline_text)
+        else:
+            event.context_type = CTX_VOICE
+            event.content = ""  # 转写后再填文字；转写失败走兜底
     elif msg_type == MSG_TYPE_VIDEO:
         event.context_type = CTX_VIDEO
         event.raw_content = message.get("content")
@@ -254,8 +351,15 @@ def parse_message(payload: dict[str, Any]) -> Optional[ChatEvent]:
         event.context_type = CTX_TRANSFER
         event.content = "[会话转接]"
     else:
-        event.context_type = CTX_UNKNOWN
-        event.content = f"[暂不支持的消息类型 {msg_type}]"
+        # 兼容不同版本的语音类型编号：报文里能识别出音频地址就按语音处理
+        voice_url = _extract_voice_url(payload)
+        if voice_url:
+            event.context_type = CTX_VOICE
+            event.audio_url = voice_url
+            event.content = ""
+        else:
+            event.context_type = CTX_UNKNOWN
+            event.content = f"[暂不支持的消息类型 {msg_type}]"
 
     if not event.uid:
         return None
@@ -314,6 +418,7 @@ __all__ = [
     "parse_ws_frame",
     "CTX_TEXT",
     "CTX_IMAGE",
+    "CTX_VOICE",
     "CTX_GOODS_INQUIRY",
     "CTX_GOODS_SPEC",
     "CTX_ORDER_INFO",
