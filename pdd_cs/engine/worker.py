@@ -338,6 +338,14 @@ class ShopWorker:
         if not content:
             return True
         recent = self.store.get_messages(uid, limit=8, shop_id=self.shop_id)
+        # 图片/商品卡片发出的 URL 可能被回显；最近刚发过同一 URL 不算人工回复
+        link_text = (content or "").strip()
+        if link_text.startswith(("http://", "https://")):
+            for msg in recent:
+                if msg.get("direction") != "out":
+                    continue
+                if link_text in str(msg.get("content") or ""):
+                    return True
         # 商品卡片的回显可能是一条商品链接，而不是文本本身；
         # 如果它对应最近刚发出的商品卡片，不能误判为“人工客服回复”。
         goods_id = self._extract_goods_id(content)
