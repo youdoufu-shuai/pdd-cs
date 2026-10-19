@@ -24,7 +24,7 @@
   match: fuzzy
   priority: 15
   reply_type: image
-  reply: https://youdoufu.xyz:38618/pdd-assets/size-men.png
+  reply: https://img.pddpic.com/mms-goods-image/2026-10-19/aae73e6a-ed98-4c5a-9380-53a9d37ba88d.png
   followup: 亲，绿逸这款尺码偏小，建议您比平时拍大一码～男士尺码：XL 120-140斤，XXL 140-160斤，3XL 160-180斤，4XL 180-200斤；具体以商品详情页和实际测量为准。
 
 - id: size_women
@@ -32,7 +32,7 @@
   match: fuzzy
   priority: 15
   reply_type: image
-  reply: https://youdoufu.xyz:38618/pdd-assets/size-women.jpg
+  reply: https://img.pddpic.com/mms-goods-image/2026-10-19/173e44c7-0487-4d09-81af-62aeaf384511.png.a.jpeg
   followup: 亲，绿逸这款尺码偏小，建议您比平时拍大一码～女士尺码：XL 90-115斤，XXL 115-135斤，3XL 135-155斤，4XL 155-185斤；具体以商品详情页和实际测量为准。
 
 - id: size_generic
