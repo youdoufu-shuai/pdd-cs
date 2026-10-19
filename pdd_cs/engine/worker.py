@@ -32,6 +32,7 @@ from ..constants import (
     ACTION_OFF_HOURS,
     ACTION_RISK_BLOCKED,
     ACTION_TRANSFER,
+    REPLY_TRANSFER,
     RESULT_FAILED,
     RESULT_HUMAN_TAKEOVER,
     RESULT_RISK_PAUSED,
@@ -52,7 +53,7 @@ from ..speech import SpeechError, VoiceTranscriber
 from ..store import Store
 from ..utils import in_business_hours, iso, jitter, now_beijing, safe_float
 from .ai import AIReplyGenerator
-from .compliance import ComplianceGuard
+from .compliance import ComplianceGuard, HandoffSignal
 from .decision import Decision, DecisionEngine, RuntimeContext
 from .knowledge import KnowledgeBase
 from .rules import RuleSet
@@ -117,6 +118,7 @@ class ShopWorker:
         self._assign_cs_cache: list[dict[str, str]] = []
         self._background: set[asyncio.Task] = set()
         self._sla_alerted: dict[str, float] = {}
+        self._clarify_counts: dict[str, int] = {}
 
     # ------------------------------------------------------------------
     # 启动 / 停止
@@ -304,6 +306,9 @@ class ShopWorker:
             await self._handle_voice(event)
             return
 
+        # 客户改发文字/正常消息后，清零语音追问计数
+        self._clarify_counts.pop(event.uid, None)
+
         self.store.record_inbound(
             uid=event.uid,
             nickname=event.nickname,
@@ -352,6 +357,7 @@ class ShopWorker:
                 logger.warning("[%s] 语音转写异常 uid=%s: %s", self.shop_id, event.uid, exc)
 
         if transcript and len(transcript.strip()) >= 2:
+            self._clarify_counts.pop(event.uid, None)
             event.context_type = CTX_TEXT
             event.content = transcript
             logger.info("[%s] 语音转写成功 uid=%s: %s", self.shop_id, event.uid, transcript[:80])
@@ -362,9 +368,6 @@ class ShopWorker:
         if self.sla.is_human_active(event.uid):
             self.store.mark_result(event.uid, RESULT_HUMAN_TAKEOVER, shop_id=self.shop_id)
             return
-        fallback = self.config.speech.fallback_reply or (
-            "收到您的语音啦～我这边听得不太清楚，麻烦您打字说一下具体问题，我马上帮您处理。"
-        )
         self.store.record_inbound(
             uid=event.uid,
             nickname=event.nickname,
@@ -375,6 +378,30 @@ class ShopWorker:
             platform_time=event.timestamp,
             shop_id=self.shop_id,
         )
+        attempts = self._clarify_counts.get(event.uid, 0) + 1
+        if attempts > 2:
+            self._clarify_counts.pop(event.uid, None)
+            decision = Decision(
+                action=ACTION_TRANSFER,
+                reply_type=REPLY_TRANSFER,
+                log_result=RESULT_TRANSFER,
+                reason="语音连续两次无法识别，自动转人工",
+                handoff=HandoffSignal("语音连续两次无法识别", "voice_unclear", 3),
+            )
+            logger.info("[%s] 语音连续两次无法识别，自动转人工 uid=%s", self.shop_id, event.uid)
+            await self._do_transfer(event.uid, decision, question="[语音]")
+            return
+        self._clarify_counts[event.uid] = attempts
+        fallback = self.config.speech.fallback_reply or (
+            "收到您的语音啦～我这边听得不太清楚，麻烦您打字说一下具体问题，我马上帮您处理。"
+        )
+        if attempts == 2:
+            fallback = (
+                "我还是没听清您的语音～请您直接把问题打字发我（商品名、尺码或售后），"
+                "我再听不清就帮您转人工处理。"
+            )
+        if self.config.human_hours.enabled and not self._human_hours_active():
+            fallback = f"{fallback}\n{self.config.human_hours.notice}"
         try:
             await asyncio.to_thread(self.api.send_text, event.uid, fallback)
             self.store.record_outbound(
