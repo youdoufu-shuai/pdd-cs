@@ -259,9 +259,10 @@ class ShopWorker:
 
         count = 0
         now = _time.monotonic()
+        cooldown = max(300.0, float(getattr(self.config.alerts, "sla_repeat_seconds", 1800)))
         for stat in self.sla.overdue():
             last = self._sla_alerted.get(stat.uid, 0.0)
-            if now - last < max(60.0, interval_seconds):
+            if now - last < cooldown:
                 continue
             self._sla_alerted[stat.uid] = now
             self.notifier.notify(
@@ -322,6 +323,8 @@ class ShopWorker:
         if event.context_type == CTX_ORDER_INFO and event.order_info:
             self.store.set_last_order(event.uid, event.order_info, shop_id=self.shop_id)
         self.sla.on_inbound(event.uid, event.nickname)
+        # 客户新消息开始新等待周期，允许下一轮超时提醒，但不会每 2 分钟重复
+        self._sla_alerted.pop(event.uid, None)
 
         if self.sla.is_human_active(event.uid):
             self.store.mark_result(event.uid, RESULT_HUMAN_TAKEOVER, shop_id=self.shop_id)

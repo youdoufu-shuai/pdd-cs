@@ -150,8 +150,10 @@ class AlertNotifier:
                 sent_any = True
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"webhook: {exc}")
+        email_events = set(self.config.email_events or ["transfer", "transfer_failed"])
         if (
             self.config.email_enabled
+            and event in email_events
             and self.config.email_smtp_host
             and self.config.email_username
             and self.config.email_password

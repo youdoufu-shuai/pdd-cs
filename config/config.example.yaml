@@ -238,13 +238,13 @@ alerts:
     - session_expired
     - transfer
     - transfer_failed
-    - sla_overdue
     - send_failed
   min_interval_seconds: 60  # 同一事件同一店铺的最小发送间隔（防刷屏）
   timeout_seconds: 10
   title_prefix: 拼多多智能客服
   offline_after_seconds: 120     # 掉线超过 2 分钟开始告警
   offline_repeat_seconds: 1800   # 一直没恢复的话，每 30 分钟提醒一次
+  sla_repeat_seconds: 1800       # 同一会话超时告警冷却，避免重复发邮件
   # 邮件通知（QQ 邮箱需使用“授权码”，不是登录密码）
   email_enabled: false
   email_smtp_host: smtp.qq.com
@@ -254,6 +254,9 @@ alerts:
   email_from: ""
   email_to:
     - 374498570@qq.com
+  email_events:
+    - transfer
+    - transfer_failed
   # 短信（需要短信服务商的 HTTP 接口；接口收到 {"phone","text"} JSON）
   sms_webhook_url: ""
   sms_phone: "18058998628"
