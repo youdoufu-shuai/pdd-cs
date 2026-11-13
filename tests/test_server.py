@@ -145,7 +145,11 @@ def test_dashboard_auth_token(service):
         base = dashboard.url
         # 健康检查始终放行（给容器/监控用）
         code, body, _ = _request(base + "healthz")
-        assert code == 200 and json.loads(body)["ok"] is True
+        assert code == 200 and json.loads(body) == {"ok": True}
+        code, body, _ = _request(base + "healthz?strict=1")
+        assert code == 503 and json.loads(body) == {"ok": False}
+        code, body, _ = _request(base + "healthz?strict=1", token=token)
+        assert code == 503 and {"shops", "degraded", "startup_errors"} <= json.loads(body).keys()
 
         # 未登录：页面展示漂亮登录页（200），API 仍返回 401
         code, body, headers = _request(base)

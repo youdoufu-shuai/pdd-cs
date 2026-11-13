@@ -77,6 +77,25 @@ def test_cli_doctor(tmp_path):
     assert "规则" in result.stdout
 
 
+def test_cli_doctor_offline_does_not_construct_platform_client(tmp_path, monkeypatch, capsys):
+    from argparse import Namespace
+    from pdd_cs import __main__ as cli
+    from pdd_cs.config import Config
+    from pdd_cs.pdd.auth import CookieStore
+
+    cfg = Config.load(_make_config(tmp_path))
+    cfg.shops[0].cookie_file = tmp_path / "mock-cookies.json"
+    CookieStore(cfg.shops[0].cookie_file).save_text("PASS_ID=synthetic-test")
+    monkeypatch.setattr(cli, "_load_config", lambda _args: cfg)
+
+    def unexpected_network(*_args, **_kwargs):
+        raise AssertionError("offline doctor must not create a platform client")
+
+    monkeypatch.setattr(cli, "PDDClient", unexpected_network)
+    cli.cmd_doctor(Namespace(offline=True))
+    assert "离线模式：未请求平台接口" in capsys.readouterr().out
+
+
 def test_cli_lint(tmp_path):
     config = _make_config(tmp_path)
     result = _run(["lint", "--config", str(config)])

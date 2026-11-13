@@ -517,33 +517,26 @@ class DashboardServer:
                     self._send_html(PAGE_HTML, headers=headers)
                     return
                 if path == "/healthz":
-                    status = service.status()
                     strict = query.get("strict", ["0"])[0] in {"1", "true", "yes"}
-                    shops = [
-                        {
-                            "shop_id": shop["shop_id"],
-                            "connected": bool(shop["channel"].get("connected")),
-                            "state": shop["channel"].get("state"),
-                        }
-                        for shop in status["shops"]
-                    ]
-                    degraded = [shop["shop_id"] for shop in shops if not shop["connected"]]
+                    authorized = self._token_ok({})
+                    # Liveness checks must not compete with customer data queries.
+                    if not strict and not authorized:
+                        self._send_json({"ok": True})
+                        return
+                    health = service.health()
                     if strict:
-                        ok = not degraded and not status.get("startup_errors") and status["shops_count"] > 0
-                        payload = {
-                            "ok": ok,
-                            "shops": shops,
-                            "degraded": degraded,
-                            "startup_errors": status.get("startup_errors", {}),
-                        }
+                        ok = health["ok"]
+                        payload = {"ok": ok}
+                        if authorized:
+                            payload.update({key: health[key] for key in ("shops", "degraded", "startup_errors")})
                         self._send_json(payload, status=200 if ok else 503)
                         return
                     self._send_json(
                         {
                             "ok": True,
-                            "state": status["channel"].get("state"),
-                            "shops": status["shops_count"],
-                            "connected": status["shops_count"] - len(degraded),
+                            "state": health["state"],
+                            "shops": len(health["shops"]),
+                            "connected": len(health["shops"]) - len(health["degraded"]),
                         }
                     )
                     return

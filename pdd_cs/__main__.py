@@ -573,8 +573,7 @@ async def _run_service(config: Config, args) -> int:
             for shop in service.shops_summary():
                 overdue = shop.get("overdue") or []
                 if overdue:
-                    names = ", ".join((item.get("nickname") or item.get("uid")) for item in overdue[:5])
-                    logger.warning("[%s] 有 %d 个会话等待超时（%s）", shop["shop_name"], len(overdue), names)
+                    logger.warning("有 %d 个会话等待超时，详情请查看待处理队列", len(overdue))
     except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     finally:
@@ -609,6 +608,7 @@ def cmd_run(args) -> int:
 # ---------------------------------------------------------------------------
 def cmd_doctor(args) -> int:
     config = _load_config(args)
+    offline = getattr(args, "offline", False)
     print(BANNER)
     print("环境自检\n" + "=" * 72)
     ok = True
@@ -651,6 +651,9 @@ def cmd_doctor(args) -> int:
         age = cookie_age_hours(bundle.saved_at)
         age_text = f"{age:.1f} 小时前保存" if age is not None else "保存时间未知"
         line("✅", f"{tag} Cookie", f"{len(bundle.cookies)} 项，{age_text}")
+        if offline:
+            line("⚠️", f"{tag} 登录态", "离线模式：未请求平台接口，不判断是否过期")
+            continue
         shop_cfg = config.for_shop(profile)
         api = PDDClient(
             bundle.cookies,
@@ -732,7 +735,10 @@ def cmd_doctor(args) -> int:
         )
 
     print("=" * 72)
-    print("结论：" + ("全部通过，可以运行 python -m pdd_cs run" if ok else "存在需要处理的问题，见上方 ❌"))
+    print("结论：" + (
+        ("本地检查通过（未联网验证登录态）" if offline else "全部通过，可以运行 python -m pdd_cs run")
+        if ok else "存在需要处理的问题，见上方 ❌"
+    ))
     print()
     if any("Cookie" in problem for problem in config.validate()) or not config.shops:
         print("👉 下一步：先运行 python -m pdd_cs login 扫码登录店铺")
@@ -992,6 +998,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor_parser = subparsers.add_parser("doctor", help="环境自检")
     doctor_parser.add_argument("--config", help="配置文件路径")
+    doctor_parser.add_argument("--offline", action="store_true", help="仅检查本地环境，不验证平台登录态")
     doctor_parser.set_defaults(func=cmd_doctor)
 
     sim_parser = subparsers.add_parser("simulate", help="决策测试台")

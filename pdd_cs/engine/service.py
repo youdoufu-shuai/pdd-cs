@@ -454,6 +454,31 @@ class PDDAutoReplyService:
             "disclosure_enabled": config.compliance.disclosure.enabled,
         }
 
+    def health(self) -> dict[str, Any]:
+        """Return connection health without querying conversation or analytics tables."""
+        workers = tuple(self.workers.values())
+        errors = self.startup_errors.copy()
+        shops = []
+        for worker in workers:
+            channel = worker.channel
+            state = channel.status_dict() if channel else {}
+            shops.append({
+                "shop_id": worker.shop_id,
+                "connected": bool(state.get("connected")),
+                "state": state.get("state"),
+            })
+        default = self.default_worker
+        channel = default.channel if default else None
+        state = channel.status_dict().get("state") if channel else "stopped"
+        degraded = [shop["shop_id"] for shop in shops if not shop["connected"]]
+        return {
+            "ok": bool(shops) and not degraded and not errors,
+            "state": state,
+            "shops": shops,
+            "degraded": degraded,
+            "startup_errors": errors,
+        }
+
     def status(self) -> dict[str, Any]:
         workers = list(self.workers.values())
         default = self.default_worker

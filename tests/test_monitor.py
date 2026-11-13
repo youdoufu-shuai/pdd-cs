@@ -203,12 +203,15 @@ def _http_get(url: str):
         return exc.code, json.loads(body) if body else {}
 
 
-def test_healthz_strict(tmp_path):
+def test_healthz_strict(tmp_path, monkeypatch):
     cfg = _config(tmp_path)
     cfg.server.host = "127.0.0.1"
     cfg.server.port = 0
     cfg.dashboard.enabled = False
     service = PDDAutoReplyService(cfg)
+    def unexpected_status():
+        raise AssertionError("health probes must not run the full dashboard status query")
+    monkeypatch.setattr(service, "status", unexpected_status)
     dashboard = DashboardServer(cfg, service)
     dashboard.start()
     try:
