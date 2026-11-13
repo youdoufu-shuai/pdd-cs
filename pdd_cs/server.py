@@ -192,8 +192,19 @@ class DashboardServer:
         class Handler(BaseHTTPRequestHandler):
             server_version = "pdd-cs/2.1"
 
+            def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
+                # Do not log the request target, client IP, headers, or body.
+                # Targets may contain a legacy login token or customer searches.
+                method = self.command if self.command in {"GET", "HEAD", "POST", "OPTIONS"} else "OTHER"
+                logger.debug("dashboard: method=%s status=%s", method, code)
+
             def log_message(self, fmt: str, *args) -> None:  # noqa: A003
-                logger.debug("dashboard: " + fmt, *args)
+                # BaseHTTPRequestHandler's protocol errors can include raw request input.
+                logger.debug("dashboard: HTTP protocol diagnostic")
+
+            def end_headers(self) -> None:
+                self.send_header("Referrer-Policy", "no-referrer")
+                super().end_headers()
 
             def _send_json(
                 self, payload: Any, status: int = 200, headers: list | None = None
@@ -261,7 +272,6 @@ class DashboardServer:
                     headers=[
                         ("X-Frame-Options", "DENY"),
                         ("X-Content-Type-Options", "nosniff"),
-                        ("Referrer-Policy", "no-referrer"),
                         (
                             "Content-Security-Policy",
                             "default-src 'self'; style-src 'unsafe-inline'; "
@@ -425,14 +435,14 @@ class DashboardServer:
                     return
                 if supplied and hmac.compare_digest(supplied, auth_token):
                     self._clear_login_failures(ip)
-                    logger.info("dashboard: 登录成功 ip=%s", ip)
+                    logger.info("dashboard: 登录成功")
                     self._send_json(
                         {"ok": True, "auth_required": True},
                         headers=[("Set-Cookie", self._cookie_header(auth_token))],
                     )
                     return
                 self._record_login_failure(ip)
-                logger.warning("dashboard: 登录失败 ip=%s attempts=%s", ip, failures + 1)
+                logger.warning("dashboard: 登录失败 attempts=%s", failures + 1)
                 self._send_json(
                     {"error": "invalid_token", "message": "访问令牌不正确，请检查后重试"},
                     status=401,

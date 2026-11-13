@@ -1,31 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "PDD 客服登录同步",
-  "version": "1.0.0",
-  "description": "把当前拼多多商家后台的登录态同步到私有客服面板，避免手动复制 Cookie。",
-  "permissions": ["cookies", "storage", "alarms", "tabs"],
-  "host_permissions": [
-    "https://*.pinduoduo.com/*",
-    "https://youdoufu.xyz:38618/*"
-  ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "content_scripts": [
-    {
-      "matches": ["https://mms.pinduoduo.com/*"],
-      "js": ["content-bridge.js"],
-      "run_at": "document_start"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["content-main.js"],
-      "matches": ["https://mms.pinduoduo.com/*"]
-    }
-  ],
+  "name": "PDD 客服面板快捷入口",
+  "version": "2.0.0",
+  "description": "打开你自己填写的客服面板，不读取商家后台登录态。",
   "action": {
-    "default_title": "同步拼多多登录态",
+    "default_title": "打开客服面板",
     "default_popup": "popup.html"
   }
 }

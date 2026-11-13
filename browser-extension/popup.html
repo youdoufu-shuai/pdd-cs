@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>PDD 客服登录同步</title>
+<title>PDD 客服面板快捷入口</title>
 <style>
   :root{color-scheme:light;--navy:#102a43;--blue:#1d4ed8;--line:#e3e8ef;--muted:#667085;--bg:#f7f9fc;--ok:#0f8a5f;--bad:#b42318}
   *{box-sizing:border-box}
@@ -30,27 +30,22 @@
 </head>
 <body>
   <div class="head">
-    <h1>PDD 客服登录同步</h1>
-    <p>把当前浏览器登录的店铺同步到私有客服面板</p>
+    <h1>PDD 客服面板快捷入口</h1>
+    <p>打开你自己设置的客服面板</p>
   </div>
-  <div class="body">
-    <label>面板地址</label>
-    <input id="serverUrl" placeholder="https://youdoufu.xyz:38618"/>
-    <label>面板访问令牌</label>
-    <input id="token" type="password" placeholder="服务器访问令牌"/>
-    <label>店铺 ID</label>
-    <input id="shopId" placeholder="1"/>
+  <form id="launcher" class="body" novalidate>
+    <label for="serverUrl">面板地址</label>
+    <input id="serverUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://panel.example.com/"/>
     <div class="row">
-      <button class="primary" id="syncBtn">立即同步</button>
-      <button class="ghost" id="saveBtn">保存配置</button>
+      <button class="primary" id="openBtn" type="submit">打开面板</button>
+      <button class="ghost" id="forgetBtn" type="button">清除地址</button>
     </div>
-    <div id="status" class="status">请先登录绿逸服饰旗舰店的后台，再点同步。</div>
+    <div id="status" class="status" role="status">请填写自己的面板网址，确认后打开。</div>
     <div class="hint">
-      扩展会读取 <code>pinduoduo.com</code> 下的登录 Cookie，并发送到你自己的面板。
-      面板会校验当前登录态是否属于目标店铺，油豆腐的登录态不会误导入绿逸。
+      仅保存面板网址，不读取商家网页、Cookie 或访问令牌。登录请在面板里完成。
     </div>
-    <div class="foot">Cookie 只在本机浏览器与你的面板之间传输，不上传第三方。</div>
-  </div>
+    <div class="foot">远程面板请使用 HTTPS。本机或通过 SSH 隧道访问时可填写 <code>http://127.0.0.1:38617/</code>。</div>
+  </form>
   <script src="popup.js"></script>
 </body>
 </html>

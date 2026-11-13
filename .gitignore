@@ -12,6 +12,27 @@ venv/
 .coverage
 htmlcov/
 
+# 本地配置、备份、登录导出和排障产物
+.env
+.env.*
+!.env.example
+*.local.yaml
+*.local.json
+*.bak
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.pem
+*.key
+*.har
+pdd-login-*
+*登录信息*
+outputs/
+.tmp_pdd_*
+deploy/*-personal.*
+deploy/*_personal.*
+
 # 运行时数据（含聊天记录，绝不提交）
 data/
 data-demo/
@@ -25,6 +46,7 @@ config/secrets/*
 
 # 用户本地配置（由 config.example.yaml 生成）
 config/config.yaml
+config/knowledge/product-catalog.md
 
 # 浏览器用户目录 / 截图缓存
 *chrome-profile*/

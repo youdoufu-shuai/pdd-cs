@@ -250,20 +250,14 @@ journalctl -u pdd-cs -f
 - **完整方案**（角色分工、分类处理矩阵、标准话术、验收用例、质检）：
   [docs/after-sales.md](docs/after-sales.md)
 
-## 浏览器登录态自动同步扩展（推荐）
+## 浏览器面板快捷入口（可选）
 
-如果服务器扫码打开的是短时效二维码、截图容易过期，可以用随项目提供的 Chrome 扩展：
+随项目提供的 [浏览器扩展](browser-extension/README.md) 只打开你主动填写的面板地址，
+不读取店铺 Cookie，不保存访问令牌，也不在后台自动同步。先卸载或禁用旧版同步扩展；
+如果曾安装旧版，升级后也请重新确认面板地址。店铺登录请在面板内完成。
 
-1. 下载 `https://你的面板地址/pdd-extension.zip`，解压；
-2. Chrome 打开 `chrome://extensions`，Microsoft Edge 打开 `edge://extensions` → 开启开发者模式/开发人员模式 → 加载已解压的扩展程序；
-3. 在扩展里填写面板地址、访问令牌和店铺 ID；
-4. 在 Chrome 里登录拼多多商家后台，点扩展「立即同步」。
-
-扩展会读取当前浏览器下 `pinduoduo.com` 的完整 Cookie（含 HttpOnly）并发送到面板。
-面板会校验登录态属于哪个店铺，**登录错店铺会直接拒绝**；同步成功后会自动重载店铺连接、
-导入最近会话，并按面板设置回复新消息。扩展每 2 分钟检查一次，Cookie 未变化时不会重复触发重连。
-
-源码在 `browser-extension/`，下载包由服务器直接提供。
+可在仓库下载 [browser-extension.zip](browser-extension.zip)，或运行
+`python scripts/package-browser-extension.py` 从源码构建下载包。
 
 ## 服务器无桌面扫码登录（Chrome Headless）
 
@@ -335,7 +329,7 @@ systemd 服务请给 Chrome 一个可写 HOME（`Environment=HOME=/opt/pdd-cs/da
 
 ![店铺与登录](docs/admin-shops.png)
 
-![导出登录态（本机登录，服务器导入）](docs/admin-export.png)
+导出的登录态等同于登录凭据。请勿将登录码、二维码、导出文件或显示这些内容的截图提交到仓库。
 
 ![系统设置](docs/admin-settings.png)
 
@@ -462,10 +456,13 @@ pdd-cs/
 
 ## 数据与隐私
 
-- 所有数据都在本机：`data/pdd_cs.db`（SQLite）和 `data/logs/`（滚动日志）。
-- Cookie 保存在 `config/secrets/cookies.json`，已加入 `.gitignore`，请勿提交或外传。
+- 运行数据保存在部署该应用的机器上：`data/pdd_cs.db`（SQLite）和 `data/logs/`（滚动日志）。启用外部 AI、告警或心跳服务时，相关请求会发送到你配置的服务，请核对其隐私设置。
+- Cookie 保存在 `config/secrets/`。生产配置、登录导出、聊天记录和未经脱敏的截图不得提交或外传。示例配置中的通知邮箱及手机号保持为空。
+- 真实商品目录、尺码图片和店铺话术请保存在部署环境，不要覆盖并提交仓库的通用模板。升级前备份本机配置、知识库和数据，尤其不要把线上店铺配置复制到公开仓库。
 - 面板只监听 `127.0.0.1`，不要改成 `0.0.0.0` 暴露到公网。
 - `python -m pdd_cs export` 可导出最近 N 天会话为 JSON，用于客诉复盘 / 申诉取证。
+- 提交前运行 `python scripts/check-publication.py --staged`，发布前运行 `python scripts/check-publication.py`。检查不替代截图人工脱敏和历史审计。
+- Git 提交也会公开作者与提交者邮箱。请在 GitHub 邮箱设置中查看自己的 `noreply` 地址，并用 `git config --local user.email` 设为该地址；建议开启 GitHub 的「阻止暴露个人邮箱的命令行推送」。
 
 ## 常见问题
 

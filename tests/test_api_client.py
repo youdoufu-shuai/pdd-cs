@@ -55,19 +55,19 @@ def test_api_against_mock():
 def test_parse_conversation_new_pdd_shape():
     raw = {
         "content": "好的",
-        "from": {"role": "mall_cs", "uid": "903048883", "csid": "主账号"},
-        "to": {"role": "user", "uid": "2962817084276"},
-        "user_info": {"uid": 2962817084276, "nickname": "p*****r"},
+        "from": {"role": "mall_cs", "uid": "900001", "csid": "主账号"},
+        "to": {"role": "user", "uid": "900000000001"},
+        "user_info": {"uid": 900000000001, "nickname": "d*****o"},
         "is_read": 1,
-        "ts": "1792328143",
+        "ts": "1700000000",
         "last_unreply_time": 0,
     }
     parsed = PDDClient._parse_conversation(raw)
-    assert parsed["uid"] == "2962817084276"
-    assert parsed["nickname"] == "p*****r"
+    assert parsed["uid"] == "900000000001"
+    assert parsed["nickname"] == "d*****o"
     assert parsed["last_message"] == "好的"
     assert parsed["last_from_role"] == "mall_cs"
-    assert parsed["time"] == "1792328143"
+    assert parsed["time"] == "1700000000"
 
 
 def test_extract_and_strip_goods_link():
@@ -75,9 +75,9 @@ def test_extract_and_strip_goods_link():
 
     text = (
         "这款保暖背心很适合您～\n"
-        "https://mobile.yangkeduo.com/goods.html?goods_id=1016239261096"
+        "https://mobile.yangkeduo.com/goods.html?goods_id=0000000000123"
     )
-    assert ShopWorker._extract_goods_id(text) == "1016239261096"
+    assert ShopWorker._extract_goods_id(text) == "0000000000123"
     stripped = ShopWorker._strip_goods_link(text)
     assert "goods.html" not in stripped
     assert "这款保暖背心很适合您" in stripped

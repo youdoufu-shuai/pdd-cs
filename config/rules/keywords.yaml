@@ -23,23 +23,19 @@
   keywords: 男士[and]尺码|男士[and]尺寸|男士[and]码数|男款[and]尺码|男款[and]尺寸|男生[and]尺码|男生[and]穿多大
   match: fuzzy
   priority: 15
-  reply_type: image
-  reply: https://img.pddpic.com/mms-goods-image/2026-10-19/aae73e6a-ed98-4c5a-9380-53a9d37ba88d.png
-  followup: 亲，绿逸这款尺码偏小，建议您比平时拍大一码～男士尺码：XL 120-140斤，XXL 140-160斤，3XL 160-180斤，4XL 180-200斤；具体以商品详情页和实际测量为准。
+  reply: 男款尺码请以所选商品详情页的尺码表为准。若不确定，可以告诉我商品和款式，我帮您确认。
 
 - id: size_women
   keywords: 女士[and]尺码|女士[and]尺寸|女士[and]码数|女款[and]尺码|女款[and]尺寸|女生[and]尺码|女生[and]穿多大
   match: fuzzy
   priority: 15
-  reply_type: image
-  reply: https://img.pddpic.com/mms-goods-image/2026-10-19/173e44c7-0487-4d09-81af-62aeaf384511.png.a.jpeg
-  followup: 亲，绿逸这款尺码偏小，建议您比平时拍大一码～女士尺码：XL 90-115斤，XXL 115-135斤，3XL 135-155斤，4XL 155-185斤；具体以商品详情页和实际测量为准。
+  reply: 女款尺码请以所选商品详情页的尺码表为准。若不确定，可以告诉我商品和款式，我帮您确认。
 
 - id: size_generic
   keywords: 尺码|尺寸|码数|穿多大|身高体重|买多大|选什么码
   match: fuzzy
   priority: 90
-  reply: 亲，绿逸这款尺码偏小，建议比平时拍大一码～您方便说下身高体重、以及要男士还是女士款吗？我给您发对应的尺码表。
+  reply: 不同款式的尺码可能不同。您看的是哪件商品、哪种款式？请先对照对应商品详情页的尺码表。
 
 - id: ship_time
   keywords: 什么时候发货|几天发货|多久发货|发货时间|什么时候能发|啥时候发

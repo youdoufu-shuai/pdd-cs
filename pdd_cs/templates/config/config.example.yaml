@@ -252,14 +252,13 @@ alerts:
   email_username: ""
   email_password_env: PDD_CS_EMAIL_PASSWORD
   email_from: ""
-  email_to:
-    - 374498570@qq.com
+  email_to: []             # 仅在自己的 config/config.yaml 填写收件人
   email_events:
     - transfer
     - transfer_failed
   # 短信（需要短信服务商的 HTTP 接口；接口收到 {"phone","text"} JSON）
   sms_webhook_url: ""
-  sms_phone: "18058998628"
+  sms_phone: ""            # 仅在自己的 config/config.yaml 填写手机号
 
 # -----------------------------------------------------------------------------
 # 进程存活心跳（死信开关，强烈建议配合服务器部署使用）

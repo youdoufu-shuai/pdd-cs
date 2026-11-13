@@ -11,25 +11,31 @@ from pdd_cs import web_admin
 from pdd_cs.pdd import cdp_login
 
 
-def _make_fake_chrome_zip(path: Path) -> None:
-    is_win = sys.platform.startswith("win")
-    root = "chrome-win64" if is_win else "chrome-linux64"
-    name = "chrome.exe" if is_win else "chrome"
+def _make_fake_chrome_zip(path: Path) -> str:
+    platform = chrome_setup.platform_key()
+    root = f"chrome-{platform}"
+    if platform.startswith("mac-"):
+        name = "Google Chrome for Testing"
+        executable = f"{root}/{name}.app/Contents/MacOS/{name}"
+    else:
+        name = "chrome.exe" if platform.startswith("win") else "chrome"
+        executable = f"{root}/{name}"
     with zipfile.ZipFile(path, "w") as archive:
-        archive.writestr(f"{root}/{name}", "fake chrome binary")
+        archive.writestr(executable, "fake chrome binary")
         archive.writestr(f"{root}/resources.pak", "fake resource")
+    return name
 
 
 def test_install_from_local_zip(tmp_path):
     zip_path = tmp_path / "chrome.zip"
-    _make_fake_chrome_zip(zip_path)
+    expected_name = _make_fake_chrome_zip(zip_path)
     target = tmp_path / "chrome"
     result = chrome_setup.install_chrome(
         target_dir=target, zip_path=zip_path, force=True
     )
     assert result["ok"] is True and result["found"] is True
     assert Path(result["path"]).exists()
-    assert Path(result["path"]).name in ("chrome", "chrome.exe")
+    assert Path(result["path"]).name == expected_name
 
     status = chrome_setup.install_status(target)
     assert status["found"] is True and status["path"] == result["path"]

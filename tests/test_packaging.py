@@ -17,6 +17,7 @@ TEMPLATE_DIR = PROJECT_ROOT / "pdd_cs" / "templates" / "config"
 
 def _config_files() -> list[Path]:
     files = [PROJECT_ROOT / "config" / "config.example.yaml", PROJECT_ROOT / "config" / "persona.md"]
+    # The operator's catalog is generated at runtime and is not a packaged template.
     files += [p for p in sorted((PROJECT_ROOT / "config" / "knowledge").glob("*.md")) if p.name != "product-catalog.md"]
     files += sorted((PROJECT_ROOT / "config" / "rules").glob("*.yaml"))
     return files

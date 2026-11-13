@@ -36,7 +36,7 @@ def test_offsite_cannot_bypass(guard):
 
 
 def test_pdd_product_link_allowed(guard):
-    link = "https://mobile.yangkeduo.com/goods.html?goods_id=1016239261096"
+    link = "https://mobile.yangkeduo.com/goods.html?goods_id=0000000000123"
     result = guard.check_outbound(f"这款保暖背心可以看这里：{link}")
     assert not any(v.category == "offsite" for v in result.violations)
     enforced = guard.enforce(f"这款保暖背心可以看这里：{link}")

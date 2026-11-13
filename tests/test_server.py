@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import urllib.error
 import urllib.request
 from urllib.parse import quote
@@ -199,6 +200,40 @@ def test_dashboard_auth_token(service):
         assert json.loads(body)["app"]
         code, body, _ = _request(base + "api/simulate", token=token, method="POST", payload={"text": "什么时候发货"})
         assert code == 200
+    finally:
+        dashboard.stop()
+
+
+def test_dashboard_request_metadata_is_not_logged(service, caplog):
+    token = "synthetic-dashboard-secret-for-test"
+    customer_search = "synthetic-private-customer-search"
+    caller_address = "192.0.2.19"
+    service.config.server.port = 0
+    service.config.server.auth_token = token
+    dashboard = DashboardServer(service.config, service)
+    dashboard.start()
+    try:
+        base = dashboard.url
+        with caplog.at_level(logging.DEBUG, logger="pdd_cs.server"):
+            code, _, headers = _request(base + "?token=" + quote(token))
+            assert code == 200
+            assert headers["Referrer-Policy"] == "no-referrer"
+            code, _, headers = _request(base + "api/search?q=" + quote(customer_search), token=token)
+            assert code == 200
+            assert headers["Referrer-Policy"] == "no-referrer"
+            code, _, _ = _request(
+                base + "api/auth/login",
+                method="POST",
+                payload={"token": token},
+                headers={"X-Real-IP": caller_address},
+            )
+            assert code == 200
+        dashboard_log = "\n".join(
+            record.getMessage() for record in caplog.records if record.name == "pdd_cs.server"
+        )
+        assert "method=GET status=200" in dashboard_log
+        assert "登录成功" in dashboard_log
+        assert all(item not in dashboard_log for item in (token, customer_search, caller_address))
     finally:
         dashboard.stop()
 
